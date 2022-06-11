@@ -1,0 +1,6 @@
+.stack-work/
+dist/
+TAGS
+stack.yaml
+stack.yaml.lock
+*~
