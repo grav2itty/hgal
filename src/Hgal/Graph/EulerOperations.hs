@@ -1,12 +1,85 @@
 module Hgal.Graph.EulerOperations where
 
+import Control.Exception
 import Control.Monad
 
-import Hgal.Graph.Helpers
 import Hgal.Graph.ClassM
+import Hgal.Graph.Helpers
 
 import Debug.Trace
 
+splitVertex :: Monad m
+            => Eq (Halfedge g)
+            => MutableHalfedgeGraph m g
+            => MutableFaceGraph m g
+            => g
+            -> Halfedge g
+            -> Halfedge g
+            -> m (Halfedge g)
+splitVertex g h1 h2 = do
+  -- add missing assert here
+
+  hnew <- halfedgeE g =<< addEdge g
+  hnewopp <- opposite g hnew
+  vnew <- addVertex g
+  insertHalfedge g hnew h2
+  insertHalfedge g hnewopp h1
+  setTarget g hnew =<< target g h1
+
+  let
+    worker hx = do
+      setTarget g hx vnew
+      n <- (opposite g <=< next g) hx
+      if n /= hnewopp
+        then worker n
+        else return n
+  hnewopp' <- worker hnewopp
+
+  setVertexHalfedge g hnew
+  setVertexHalfedge g hnewopp'
+  return hnew
+
+joinVertex :: Monad m
+           => Eq (Halfedge g)
+           => Eq (Vertex g)
+           => MutableHalfedgeGraph m g
+           => MutableFaceGraph m g
+           => g
+           -> Halfedge g
+           -> m (Halfedge g)
+joinVertex g h = do
+  hop <- opposite g h
+  hprev <- prev g hop
+  gprev <- prev g h
+  hnext <- next g hop
+  gnext <- next g h
+  v_to_remove <- target g hop
+  v <- target g h
+
+  -- add missing assert here
+
+  halfedgesAroundTarget g (\g' hx -> do
+                              t <- target g hx
+                              assert (t == v_to_remove) $
+                                setTarget g' hx v
+                          ) hop
+
+  setNext g hprev hnext
+  setNext g gprev gnext
+  setHalfedgeV g v gprev
+
+  bg <- isBorder g gprev
+  unless bg $ do
+    (setHalfedgeF g ?? gprev) =<< face g gprev
+
+  bh <- isBorder g hprev
+  unless bh $ do
+    (setHalfedgeF g ?? hprev) =<< face g hprev
+
+  removeEdge g =<< edge g h
+  removeVertex g v_to_remove
+
+  return hprev
 
 addCenterVertex :: Monad m
                 => Eq (Halfedge g)
@@ -46,12 +119,12 @@ addCenterVertex g h = do
   return hnew
 
 removeCenterVertex :: Monad m
-                => Eq (Halfedge g)
-                => MutableHalfedgeGraph m g
-                => MutableFaceGraph m g
-                => g
-                -> Halfedge g
-                -> m (Halfedge g)
+                   => Eq (Halfedge g)
+                   => MutableHalfedgeGraph m g
+                   => MutableFaceGraph m g
+                   => g
+                   -> Halfedge g
+                   -> m (Halfedge g)
 removeCenterVertex g h = do
   h2 <- (opposite g <=< next g) h
   hret <- prev g h

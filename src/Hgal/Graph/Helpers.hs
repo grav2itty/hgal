@@ -48,15 +48,41 @@ removeTip g h = do
   setNext g h =<< (next g <=< opposite g <=< next g) h
 
 setFaceInFaceLoop :: Monad m
-                  => Eq (HalfedgeDescriptor g)
+                  => Eq (Halfedge g)
                   => MutableFaceGraph m g
                   => g
                   -> Halfedge g
-                  -> FaceDescriptor g
+                  -> Face g
                   -> m ()
 setFaceInFaceLoop g h f = worker h
   where
     worker hx = do
       setFace g hx f
       n <- next g hx
+      when (n /= h) (worker n)
+
+insertHalfedge :: Monad m
+               => MutableHalfedgeGraph m g
+               => MutableFaceGraph m g
+               => g
+               -> Halfedge g
+               -> Halfedge g
+               -> m ()
+insertHalfedge g h f = do
+  setNext g h =<< next g f
+  setNext g f h
+  setFace g h =<< face g f
+
+halfedgesAroundTarget :: Monad m
+                      => Eq (Halfedge g)
+                      => HalfedgeGraph m g
+                      => g
+                      -> (g -> Halfedge g -> m())
+                      -> Halfedge g
+                      -> m ()
+halfedgesAroundTarget g f h = worker h
+  where
+    worker hx = do
+      f g hx
+      n <- (opposite g <=< next g) hx
       when (n /= h) (worker n)
