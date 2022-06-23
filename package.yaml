@@ -21,19 +21,35 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- containers
+- lens
+- mtl
+- transformers
+- vector
+- vector-circular
+
 
 default-extensions:
+- DefaultSignatures
 - FlexibleContexts
 - FlexibleInstances
+- FunctionalDependencies
 - MultiParamTypeClasses
+- RankNTypes
+- TemplateHaskell
+- TupleSections
 - TypeFamilies
+
 
 library:
   source-dirs: src
   exposed-modules:
+    - Hgal.Graph.Class
     - Hgal.Graph.ClassM
     - Hgal.Graph.Helpers
     - Hgal.Graph.EulerOperations
+    - Hgal.Graph.EulerOperationsM
+    - Hgal.Data.SurfaceMesh
 
 tests:
   hgal-test:
