@@ -18,6 +18,7 @@ import qualified Data.Sequence as Seq (empty)
 
 import qualified Hgal.Graph.Class as Graph
 import qualified Hgal.Graph.ClassM as GraphM
+import Hgal.Graph.Loops
 
 import Debug.Trace
 import qualified Hgal.Graph.EulerOperationsM as Euler
@@ -127,6 +128,12 @@ instance Element Vertex where
     | otherwise = Right True
     where h = halfedge sm v
 
+  isBorder sm v
+    | h == nullE = True
+    | otherwise = any (isBorder sm) (halfedgesAroundTarget sm h)
+    where h = halfedge sm v
+
+
   vertex _ v = v
   halfedge sm v = view (conn v.vH) sm
   setHalfedge sm v h = set (conn v.vH) h sm
@@ -225,10 +232,14 @@ instance Element Face where
     | otherwise = Right True
     where h = halfedge sm f
 
+  isBorder sm v
+    | h == nullE = True
+    | otherwise = any (isBorder sm) (halfedgesAroundFace sm h)
+    where h = halfedge sm v
+
   halfedge sm f = view (conn f.fH) sm
   setHalfedge sm f h = set (conn f.fH) h sm
   face _ f = f
-
 
   newtype Size Face = FaceSize Int
     deriving (Bounded, Enum, Eq, Ord, Show)
@@ -405,7 +416,7 @@ hF :: Lens' (Connectivity Halfedge) Face
 hF g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity x v n p) <$> g f
 
 hV :: Lens' (Connectivity Halfedge) Vertex
-hV g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity f x n p)  <$> g v
+hV g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity f x n p) <$> g v
 
 hN :: Lens' (Connectivity Halfedge) Halfedge
 hN g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity f v x p) <$> g n

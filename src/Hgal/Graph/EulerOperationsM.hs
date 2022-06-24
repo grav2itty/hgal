@@ -17,6 +17,7 @@ import qualified Data.Vector.Mutable as VM
 import Hgal.Graph.ClassM hiding (addFace, addEdge)
 import qualified Hgal.Graph.ClassM as Graph (addFace, addEdge)
 import Hgal.Graph.Helpers
+import Hgal.Graph.LoopsM
 
 import Debug.Trace
 
@@ -103,7 +104,7 @@ addFace g vs = do
         modify (V.modify (\vec -> VM.write vec i he))
         lift $ (setFace g ?? nullF) =<< opposite g he
 
-    setupHalfedgesF halfedges' (i, ii)  = do
+    setupHalfedgesF halfedges' (i, ii) = do
       let
         v = vertices V.! ii
         innerPrev = halfedges' V.! i
@@ -121,7 +122,7 @@ addFace g vs = do
               bh <- isBorderH g hv
               hv' <- if hv == nullH || bh then return hv
                 else do
-                  hAroundV <- halfedgesAroundTarget0 g hv
+                  hAroundV <- halfedgesAroundTarget g hv
                   r <- findMOf traversed (isBorderH g) hAroundV
                   return $ fromMaybe nullH r
               if hv' == nullH
@@ -217,11 +218,11 @@ joinVertex g h = do
 
   -- add missing assert here
 
-  halfedgesAroundTarget g (\g' hx -> do
-                              t <- target g hx
-                              assert (t == v_to_remove) $
-                                setTarget g' hx v
-                          ) hop
+  halfedgeAroundTarget g (\g' hx -> do
+                             t <- target g hx
+                             assert (t == v_to_remove) $
+                               setTarget g' hx v
+                         ) hop
 
   setNext g hprev hnext
   setNext g gprev gnext

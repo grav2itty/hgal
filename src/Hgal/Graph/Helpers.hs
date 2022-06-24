@@ -3,8 +3,6 @@ module Hgal.Graph.Helpers where
 import Control.Monad
 import Control.Lens ((??))
 import Data.Either
-import Data.Vector.Circular (CircularVector)
-import qualified Data.Vector.Circular as CV
 
 import Hgal.Graph.ClassM
 
@@ -83,7 +81,7 @@ isIsolated :: Monad m
            => g
            -> Vertex g
            -> m Bool
-isIsolated g v = liftM2 (==) (halfedgeV g v) (nullHalfedge  g)
+isIsolated g v = liftM2 (==) (halfedgeV g v) (nullHalfedge g)
 
 adjustIncomingHalfedge :: Monad m
                        => Eq (Vertex g)
@@ -112,28 +110,3 @@ adjustIncomingHalfedge g v = do
       worker h'
 
 
-halfedgesAroundTarget :: Monad m
-                      => Eq (Halfedge g)
-                      => HalfedgeGraph m g
-                      => g
-                      -> (g -> Halfedge g -> m())
-                      -> Halfedge g
-                      -> m ()
-halfedgesAroundTarget g f h = worker h
-  where
-    worker hx = do
-      f g hx
-      n <- (opposite g <=< next g) hx
-      when (n /= h) (worker n)
-
-halfedgesAroundTarget0 :: Monad m
-                       => Eq (Halfedge g)
-                       => HalfedgeGraph m g
-                       => g
-                       -> Halfedge g
-                       -> m (CircularVector (Halfedge g))
-halfedgesAroundTarget0 g h = CV.unfoldr1M worker h h
-  where
-    worker hx = do
-      n <- (opposite g <=< next g) hx
-      if n /= h then return (Just (n, n)) else return Nothing

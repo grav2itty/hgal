@@ -29,6 +29,8 @@ library
       Hgal.Graph.Helpers
       Hgal.Graph.EulerOperations
       Hgal.Graph.EulerOperationsM
+      Hgal.Graph.Loops
+      Hgal.Graph.LoopsM
       Hgal.Data.SurfaceMesh
   other-modules:
       Paths_hgal
