@@ -50,6 +50,7 @@ library
       base >=4.7 && <5
     , containers
     , lens
+    , linear
     , mtl
     , transformers
     , vector
@@ -79,8 +80,10 @@ test-suite hgal-test
     , containers
     , hgal
     , lens
+    , linear
     , mtl
     , tasty
+    , tasty-hspec
     , transformers
     , vector
     , vector-circular

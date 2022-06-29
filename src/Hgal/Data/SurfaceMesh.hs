@@ -10,18 +10,18 @@ import Control.Monad.State
 import Data.Bits
 import Data.Either
 import Data.Foldable (length)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Maybe
 import Data.Sequence hiding (empty, length)
 import qualified Data.Sequence as Seq (empty)
+import Data.Tuple
 
 import qualified Hgal.Graph.Class as Graph
 import qualified Hgal.Graph.ClassM as GraphM
 import Hgal.Graph.Loops
 
 import Debug.Trace
-import qualified Hgal.Graph.EulerOperationsM as Euler
+import qualified Hgal.Graph.EulerOperations as Euler
+import qualified Hgal.Graph.EulerOperationsM as EulerM
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
@@ -64,8 +64,13 @@ class Element a where
 
   isBorder :: SurfaceMesh v d -> a -> Bool
 
+  isIsolated :: SurfaceMesh v d -> a -> Bool
+  isIsolated sm = (== nullE) . halfedge sm
+
   isRemoved :: SurfaceMesh v d -> a -> Bool
   isRemoved _ _ = False
+
+  degree :: SurfaceMesh v d -> a -> Int
 
   vertex :: SurfaceMesh v d -> a -> Vertex
   vertex sm = vertex sm . halfedge sm
@@ -144,6 +149,11 @@ instance Element Vertex where
     | otherwise = any (isBorder sm) (halfedgesAroundTarget sm h)
     where h = halfedge sm v
 
+  degree sm v
+    | h == nullE = 0
+    | otherwise = length $ verticesAroundTarget sm h
+    where h = halfedge sm v
+
   vertex _ v = v
   halfedge sm v = view (conn v.vH) sm
   setHalfedge sm v h = set (conn v.vH) h sm
@@ -188,7 +198,7 @@ instance Element Halfedge where
       hn = next sm h
       hp = prev sm h
 
-  isBorder sm h = not . fromRight False . isValid sm . face sm $ h
+  isBorder sm = (== nullE) . face sm
 
   halfedge _ h = h
   vertex sm h = view (conn h.hV) sm
@@ -251,6 +261,11 @@ instance Element Face where
     | otherwise = any (isBorder sm) (halfedgesAroundFace sm h)
     where h = halfedge sm v
 
+  degree sm v
+    | h == nullE = 0
+    | otherwise = length $ verticesAroundFace sm h
+    where h = halfedge sm v
+
   halfedge sm f = view (conn f.fH) sm
   setHalfedge sm f h = set (conn f.fH) h sm
   face _ f = f
@@ -303,6 +318,15 @@ addFace sm =
   let sm' = (fconn._Wrapped') %~ (snoc ?? FaceConnectivity nullE) $ sm
   in (new sm, sm')
 
+newVertex :: SurfaceMesh v d -> v -> (SurfaceMesh v d, Vertex)
+newVertex sm v =
+  --that's not exactly right
+  let sm' = vpoint %~ (snoc ?? v) $ sm
+  in swap $ addVertex sm'
+
+newFace :: Foldable t => SurfaceMesh v d -> t Vertex -> (SurfaceMesh v d, Face)
+newFace sm vs = swap $ Euler.addFace sm vs
+
 -------------------------------------------------------------------------------
 -- Removing elements
 
@@ -354,7 +378,7 @@ halfedgeVV sm sour tar =
         if source sm hx == sour then Just hx
           else if n /= h then worker n
              else Nothing
-    result = if not (fromRight False $ isValid sm h) then Nothing
+    result = if h == nullE then Nothing
       else worker h
 
 -------------------------------------------------------------------------------
@@ -560,7 +584,7 @@ foo =
             v1 <- GraphM.addVertex sm
             v2 <- GraphM.addVertex sm
             v3 <- GraphM.addVertex sm
-            Euler.addFace sm [v1, v2, v3]
+            EulerM.addFace sm [v1, v2, v3]
             return ()
   in execState f sm
 

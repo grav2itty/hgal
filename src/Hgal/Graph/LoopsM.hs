@@ -126,7 +126,7 @@ halfedgesAroundTarget :: Monad m
                       -> Halfedge g
                       -> m (CircularVector (Halfedge g))
 halfedgesAroundTarget g h =
-  CV.unfoldr1M (loopC nextAroundTarget g (const return)) h h
+  CV.unfoldr1M (loopC nextAroundTarget g (const return) h) h h
 
 halfedgesAroundSource :: Monad m
                       => Eq (Halfedge g)
@@ -135,7 +135,7 @@ halfedgesAroundSource :: Monad m
                       -> Halfedge g
                       -> m (CircularVector (Halfedge g))
 halfedgesAroundSource g h =
-  CV.unfoldr1M (loopC nextAroundSource g (const return)) h h
+  CV.unfoldr1M (loopC nextAroundSource g (const return) h) h h
 
 halfedgesAroundFace :: Monad m
                     => Eq (Halfedge g)
@@ -143,7 +143,7 @@ halfedgesAroundFace :: Monad m
                     => g
                     -> Halfedge g
                     -> m (CircularVector (Halfedge g))
-halfedgesAroundFace g h = CV.unfoldr1M (loopC next g (const return)) h h
+halfedgesAroundFace g h = CV.unfoldr1M (loopC next g (const return) h) h h
 
 facesAroundTarget :: Monad m
                   => Eq (Halfedge g)
@@ -152,7 +152,7 @@ facesAroundTarget :: Monad m
                   -> Halfedge g
                   -> m (CircularVector (Face g))
 facesAroundTarget g h =
-  (CV.unfoldr1M (loopC nextAroundTarget g face) ?? h) =<< face g h
+  (CV.unfoldr1M (loopC nextAroundTarget g face h) ?? h) =<< face g h
 
 facesAroundFace :: Monad m
                 => Eq (Halfedge g)
@@ -161,7 +161,7 @@ facesAroundFace :: Monad m
                 -> Halfedge g
                 -> m (CircularVector (Face g))
 facesAroundFace g h =
-  (CV.unfoldr1M (loopC next g face) ?? h) =<< face g h
+  (CV.unfoldr1M (loopC next g face h) ?? h) =<< face g h
 
 verticesAroundTarget :: Monad m
                      => Eq (Halfedge g)
@@ -170,7 +170,7 @@ verticesAroundTarget :: Monad m
                      -> Halfedge g
                      -> m (CircularVector (Vertex g))
 verticesAroundTarget g h =
-  (CV.unfoldr1M (loopC nextAroundTarget g source) ?? h) =<< source g h
+  (CV.unfoldr1M (loopC nextAroundTarget g source h) ?? h) =<< source g h
 
 verticesAroundFace :: Monad m
                    => Eq (Halfedge g)
@@ -179,7 +179,7 @@ verticesAroundFace :: Monad m
                    -> Halfedge g
                    -> m (CircularVector (Vertex g))
 verticesAroundFace g h =
-  (CV.unfoldr1M (loopC next g target) ?? h) =<< target g h
+  (CV.unfoldr1M (loopC next g target h) ?? h) =<< target g h
 
 edgesAroundFace :: Monad m
                 => Eq (Halfedge g)
@@ -188,7 +188,7 @@ edgesAroundFace :: Monad m
                 -> Halfedge g
                 -> m (CircularVector (Edge g))
 edgesAroundFace g h =
-  (CV.unfoldr1M (loopC next g edge) ?? h) =<< edge g h
+  (CV.unfoldr1M (loopC next g edge h) ?? h) =<< edge g h
 
 -------------------------------------------------------------------------------
 -- internal helpers
@@ -212,10 +212,9 @@ loopC :: Monad m
       -> g
       -> (g -> Halfedge g -> m a)
       -> Halfedge g
+      -> Halfedge g
       -> m (Maybe (a, Halfedge g))
-loopC m g f h = worker h
-  where
-    worker hx = do
-      n <- m g hx
-      a <- f g hx
-      if n /= h then return (Just (a, n)) else return Nothing
+loopC m g f h hx = do
+  n <- m g hx
+  a <- f g hx
+  if n /= h then return (Just (a, n)) else return Nothing

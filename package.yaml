@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.7 && < 5
 - containers
 - lens
+- linear
 - mtl
 - transformers
 - vector
@@ -64,3 +65,4 @@ tests:
     dependencies:
     - hgal
     - tasty
+    - tasty-hspec
