@@ -7,6 +7,7 @@ module Hgal.Data.SurfaceMesh where
 import Control.Exception
 import Control.Lens
 import Control.Monad.State
+import Data.Bifunctor
 import Data.Bits
 import Data.Either
 import Data.Foldable (length)
@@ -223,11 +224,11 @@ instance Element Edge where
     where (EdgeSize n) = numElements sm
 
   isValid sm e
-    | hasValidIndex sm e = collectErrors [isValid sm h, isValid sm (opposite sm h)]
+    | hasValidIndex sm e = collectErrors [isValid sm h, isValid sm (opposite h)]
     | otherwise = Right False
     where h = halfedge sm e
 
-  isBorder sm e = isBorder sm h || isBorder sm (opposite sm h)
+  isBorder sm e = isBorder sm h || isBorder sm (opposite h)
     where h = halfedge sm e
 
   halfedge _ (Edge i) = Halfedge i
@@ -360,11 +361,11 @@ setPrevOnly sm h ph = set (conn h.hP) ph sm
 setNext :: SurfaceMesh v d -> Halfedge -> Halfedge -> SurfaceMesh v d
 setNext sm h nh = setPrevOnly (setNextOnly sm h nh) nh h
 
-opposite :: SurfaceMesh v d -> Halfedge -> Halfedge
-opposite _ h = xor h 1
+opposite :: Halfedge -> Halfedge
+opposite h = xor h 1
 
 source :: SurfaceMesh v d -> Halfedge -> Vertex
-source sm h = target sm (opposite sm h)
+source sm = target sm . opposite
 
 
 halfedgeVV :: SurfaceMesh v d -> Vertex -> Vertex -> Maybe Halfedge
@@ -373,7 +374,7 @@ halfedgeVV sm sour tar =
   where
     h = halfedge sm tar
     worker hx =
-      let n = next sm (opposite sm hx)
+      let n = opposite (next sm hx)
       in
         if source sm hx == sour then Just hx
           else if n /= h then worker n
@@ -397,6 +398,43 @@ faceProperties :: Property d Face p => SurfaceMesh v d -> Container Face p
 faceProperties sm = properties (_props sm)
 
 -------------------------------------------------------------------------------
+-- Full integrity check
+
+checkIntegrity :: SurfaceMesh v d -> Either String Bool
+checkIntegrity sm = collectErrors [hsI, vsI]
+  where
+    hsI = second and (mapM (halfedgeIntegrity sm) $ halfedges sm)
+    vsI = second and (mapM (vertexIntegrity sm) $ vertices sm)
+
+halfedgeIntegrity :: SurfaceMesh v d -> Halfedge -> Either String Bool
+halfedgeIntegrity sm h = halfedgeI >> oppositeI >> previousI >> nextI >> vertexI >> nextOppositeI
+  where
+    halfedgeI =
+      first (\s -> "Integrity of halfedge " ++ show h ++ " corrupted.\n" ++ s) $
+      collectErrors [isValid sm (next sm h), isValid sm (opposite h)]
+    oppositeI
+      | opposite h /= h && opposite (opposite h) == h = Right True
+      | otherwise = Left $ "Integrity of opposite halfedge of " ++ show h ++ " corrupted.\n"
+    previousI
+      | next sm (prev sm h) == h = Right True
+      | otherwise = Left $ "Integrity of previous halfedge of " ++ show h ++ " corrupted.\n"
+    nextI
+      | prev sm (next sm h) == h = Right True
+      | otherwise = Left $ "Integrity of next halfedge of " ++ show h ++ " corrupted.\n"
+    vertexI =
+      first (\s -> "Integrity of vertex of halfedge " ++ show h ++ " corrupted.\n" ++ s) $
+      collectErrors [isValid sm (target sm h)]
+    nextOppositeI
+      | target sm (opposite (next sm h)) == target sm h = Right True
+      | otherwise = Left $ "Halfedge vertex of next opposite is not the same for " ++ show h ++ ".\n"
+
+vertexIntegrity :: SurfaceMesh v d -> Vertex -> Either String Bool
+vertexIntegrity sm v
+  | fromRight False (isValid sm h) && target sm (halfedge sm v) == v = Right True
+  | otherwise = Left $ "Halfedge of vertex " ++ show v ++ " is not an incoming halfedge.\n"
+  where h = halfedge sm v
+
+-------------------------------------------------------------------------------
 -- string & error helpers
 
 showConnectivity :: (Show a, Foldable t) => String -> t a -> String
@@ -416,6 +454,9 @@ collectErrors es =
   let right = Right (and (rights es))
       left = Left (unlines (lefts es))
   in if Prelude.null (lefts es) then right else left
+
+putIntegrity :: SurfaceMesh v d -> IO ()
+putIntegrity = putStr . fromLeft "All correct.\n" . checkIntegrity
 
 -------------------------------------------------------------------------------
 -- Show instances
@@ -492,7 +533,7 @@ instance Graph.HalfedgeGraph (SurfaceMesh v d) where
   halfedgeV = halfedge
   halfedgeE = halfedge
   halfedgeVV = halfedgeVV
-  opposite = opposite
+  opposite _ = opposite
   source = source
   target = target
   next = next
@@ -538,7 +579,7 @@ instance GraphM.HalfedgeGraph (St v d) (SurfaceMesh v d) where
   halfedgeV _ h = gets (`halfedge` h)
   halfedgeE _ h = gets (`halfedge` h)
   halfedgeVV _ h v = gets (\s -> halfedgeVV s h v)
-  opposite _ h = gets (`opposite` h)
+  opposite _ h = return (opposite h)
   source _ h = gets (`source` h)
   target _ h = gets (`target` h)
   next _ h = gets (`next` h)

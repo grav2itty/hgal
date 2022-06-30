@@ -216,5 +216,5 @@ loopC :: Monad m
       -> m (Maybe (a, Halfedge g))
 loopC m g f h hx = do
   n <- m g hx
-  a <- f g hx
+  a <- f g n
   if n /= h then return (Just (a, n)) else return Nothing
