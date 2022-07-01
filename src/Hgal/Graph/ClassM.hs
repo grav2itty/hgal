@@ -1,5 +1,6 @@
 module Hgal.Graph.ClassM where
 
+import Control.Lens
 import Control.Monad.State
 import Data.Kind
 
@@ -83,4 +84,16 @@ class (Monad m, FaceGraph m g) => MutableFaceGraph m g | g -> m where
 --   ( FaceGraphS m g,
 --     Pure.MutableFaceGraph g
 --   ) => MutableFaceGraphS m g where
+
+
+class HasPoints m s p where
+  getPoint :: s -> Vertex s -> m p
+  adjustPoint :: s -> (p -> p) -> Vertex s -> m ()
+  replacePoint :: s -> Vertex s -> p -> m ()
+  replacePoint s k v = adjustPoint s (const v) k
+
+instance (Pure.HasPoints s p, Pure.Vertex s ~ Vertex s)
+          => HasPoints (State s) s p where
+  getPoint _ k = use (Pure.point k)
+  adjustPoint _ f k = modifying (Pure.point k) f
 

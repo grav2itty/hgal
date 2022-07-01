@@ -47,6 +47,8 @@ library:
   exposed-modules:
     - Hgal.Graph.Class
     - Hgal.Graph.ClassM
+    - Hgal.Graph.Generators
+    - Hgal.Graph.GeneratorsM
     - Hgal.Graph.Helpers
     - Hgal.Graph.EulerOperations
     - Hgal.Graph.EulerOperationsM

@@ -219,7 +219,7 @@ joinVertex g h = do
   -- add missing assert here
 
   halfedgeAroundTarget g (\g' hx -> do
-                             t <- target g hx
+                             t <- target g' hx
                              assert (t == v_to_remove) $
                                setTarget g' hx v
                          ) hop
@@ -240,6 +240,19 @@ joinVertex g h = do
   removeVertex g v_to_remove
 
   return hprev
+
+
+fillHole :: Monad m
+         => Eq (Halfedge g)
+         => MutableHalfedgeGraph m g
+         => MutableFaceGraph m g
+         => g
+         -> Halfedge g
+         -> m ()
+fillHole g h = do
+  f <- Graph.addFace g
+  halfedgeAroundFace g (\g' h' -> setFace g' h' f) h
+  setHalfedgeF g f h
 
 addCenterVertex :: Monad m
                 => Eq (Halfedge g)

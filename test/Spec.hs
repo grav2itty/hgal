@@ -25,7 +25,7 @@ main = do
   defaultMain (testGroup "All Tests" [testGroup "Static fixture tests" specs])
 
 u, v, w, x, y, z :: Vertex
-(u, v, w, x, y, z) = (Vertex 0, Vertex 1, Vertex 2, Vertex 3, Vertex 4, Vertex 5)
+[u, v, w, x, y, z] = Vertex <$> [0..5]
 
 loops :: Spec
 loops =

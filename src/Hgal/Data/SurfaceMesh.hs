@@ -20,6 +20,11 @@ import qualified Hgal.Graph.Class as Graph
 import qualified Hgal.Graph.ClassM as GraphM
 import Hgal.Graph.Loops
 
+import Hgal.Graph.Generators
+
+import qualified Hgal.Graph.Generators as GM
+import Linear
+
 import Debug.Trace
 import qualified Hgal.Graph.EulerOperations as Euler
 import qualified Hgal.Graph.EulerOperationsM as EulerM
@@ -28,6 +33,7 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Hgal.Graph.GeneratorsM as GM
 
 data family Connectivity a :: *
 
@@ -274,6 +280,9 @@ instance Element Face where
   newtype Size Face = FaceSize Int
     deriving (Bounded, Enum, Eq, Ord, Show)
     deriving newtype (Bits, Integral, Num, Real)
+
+instance Graph.HasPoints (SurfaceMesh v d) v where
+  point (Vertex i) = vpoint.singular (ix i)
 
 
 empty :: d -> SurfaceMesh v d
@@ -641,10 +650,11 @@ instance Property MyProps2 Edge (Map String String) where
   property (Edge i) g (MyProps2 m) = MyProps2 <$> (_2.at i) g m
   properties (MyProps2 m) = snd m
 
-foo2 :: SurfaceMesh () MyProps2
+foo2 :: SurfaceMesh (V3 Double) MyProps2
 foo2 =
-  let sm = empty (MyProps2 (IntMap.empty, IntMap.empty))
+  let sm = empty (MyProps2 (IntMap.empty, IntMap.empty)) :: SurfaceMesh (V3 Double) MyProps2
       f = do
+           -- GM.makeRegularPrism sm 3 (V3 (0::Double) 0 0) 7 13 True
             v1 <- GraphM.addVertex sm
             GraphM.addEdge sm
             propertyOf (Vertex 0) ?= 7
