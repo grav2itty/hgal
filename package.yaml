@@ -54,6 +54,8 @@ library:
     - Hgal.Graph.EulerOperationsM
     - Hgal.Graph.Loops
     - Hgal.Graph.LoopsM
+    - Hgal.Data.Property
+    - Hgal.Data.PropertyM
     - Hgal.Data.SurfaceMesh
 
 tests:

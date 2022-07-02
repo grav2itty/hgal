@@ -85,15 +85,9 @@ class (Monad m, FaceGraph m g) => MutableFaceGraph m g | g -> m where
 --     Pure.MutableFaceGraph g
 --   ) => MutableFaceGraphS m g where
 
+type family PointDescriptor a :: Type
+type Point a = PointDescriptor a
 
-class HasPoints m s p where
-  getPoint :: s -> Vertex s -> m p
-  adjustPoint :: s -> (p -> p) -> Vertex s -> m ()
-  replacePoint :: s -> Vertex s -> p -> m ()
-  replacePoint s k v = adjustPoint s (const v) k
-
-instance (Pure.HasPoints s p, Pure.Vertex s ~ Vertex s)
-          => HasPoints (State s) s p where
-  getPoint _ k = use (Pure.point k)
-  adjustPoint _ f k = modifying (Pure.point k) f
+class PointGraph g where
+  point :: g -> Vertex g -> Point g
 

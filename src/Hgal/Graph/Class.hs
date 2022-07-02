@@ -53,6 +53,3 @@ class FaceGraph g => MutableFaceGraph g where
   removeFace :: g -> Face g -> g
   setFace :: g -> Halfedge g -> Face g -> g
   setHalfedgeF :: g -> Face g -> Halfedge g -> g
-
-class HasPoints s p where
-  point :: Vertex s -> Lens' s p

@@ -5,45 +5,37 @@
 module Hgal.Data.SurfaceMesh where
 
 import Control.Exception
-import Control.Lens
+import Control.Lens hiding (point)
 import Control.Monad.State
 import Data.Bifunctor
 import Data.Bits
 import Data.Either
-import Data.Foldable (length)
+import Data.Foldable (length, toList)
 import Data.Maybe
-import Data.Sequence hiding (empty, length)
+import Data.Sequence as Seq hiding (empty, length)
 import qualified Data.Sequence as Seq (empty)
 import Data.Tuple
+import qualified Data.Vector as V
 
 import qualified Hgal.Graph.Class as Graph
 import qualified Hgal.Graph.ClassM as GraphM
 import Hgal.Graph.Loops
-
-import Hgal.Graph.Generators
-
-import qualified Hgal.Graph.Generators as GM
-import Linear
+import Hgal.Data.Property
+import qualified Hgal.Data.PropertyM as M
 
 import Debug.Trace
 import qualified Hgal.Graph.EulerOperations as Euler
 import qualified Hgal.Graph.EulerOperationsM as EulerM
-
+import Hgal.Graph.Generators
+import qualified Hgal.Graph.GeneratorsM as GM
+import Linear
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Hgal.Graph.GeneratorsM as GM
+
 
 data family Connectivity a :: *
-
-class Property s k p | k -> p, p -> k, k -> s where
-  type Container k :: * -> *
-
-  -- pGet :: s -> k -> Maybe p
-  -- pAdjust :: (p -> p) -> k -> s -> s
-  property :: k -> Lens' s (Maybe p)
-  properties :: s -> (Container k) p
 
 class Element a where
   data Size a :: *
@@ -109,11 +101,16 @@ newtype Face = Face Int
     deriving (Bounded, Enum, Eq, Ord)
     deriving newtype (Bits, Integral, Num, Real)
 
+-- should be the other way round?
+newtype Point = Point Vertex
+    deriving (Bounded, Enum, Eq, Ord)
+    deriving newtype (Bits, Integral, Num, Real)
+
 data SurfaceMesh v d = SurfaceMesh
   { _vconn :: Seq (Connectivity Vertex)
   , _hconn :: Seq (Connectivity Halfedge)
   , _fconn :: Seq (Connectivity Face)
-  , _vpoint :: Seq v
+  , _vpoint :: Seq (Maybe v)
   , _props :: d
   }
 
@@ -281,9 +278,6 @@ instance Element Face where
     deriving (Bounded, Enum, Eq, Ord, Show)
     deriving newtype (Bits, Integral, Num, Real)
 
-instance Graph.HasPoints (SurfaceMesh v d) v where
-  point (Vertex i) = vpoint.singular (ix i)
-
 
 empty :: d -> SurfaceMesh v d
 empty = SurfaceMesh
@@ -315,7 +309,8 @@ faces sm = Prelude.filter (not . isRemoved sm) $
 addVertex :: SurfaceMesh v d -> (Vertex, SurfaceMesh v d)
 addVertex sm =
   let sm' = (vconn._Wrapped') %~ (snoc ?? VertexConnectivity nullE) $ sm
-  in (new sm, sm')
+      sm'' = vpoint %~ (snoc ?? Nothing) $ sm'
+  in (new sm, sm'')
 
 addEdge :: SurfaceMesh v d -> (Edge, SurfaceMesh v d)
 addEdge sm =
@@ -331,7 +326,7 @@ addFace sm =
 newVertex :: SurfaceMesh v d -> v -> (SurfaceMesh v d, Vertex)
 newVertex sm v =
   --that's not exactly right
-  let sm' = vpoint %~ (snoc ?? v) $ sm
+  let sm' = vpoint %~ (snoc ?? Just v) $ sm
   in swap $ addVertex sm'
 
 newFace :: Foldable t => SurfaceMesh v d -> t Vertex -> (SurfaceMesh v d, Face)
@@ -394,17 +389,30 @@ halfedgeVV sm sour tar =
 -------------------------------------------------------------------------------
 -- Properties
 
-vertexProperties :: Property d Vertex p => SurfaceMesh v d -> Container Vertex p
+instance Property (SurfaceMesh v d) Point v where
+  property (Point (Vertex i)) = vpoint.lens (`Seq.index` i) (flip $ Seq.update i)
+  properties sm = V.fromList. toList $ _vpoint sm
+
+instance M.Property (St v d) (SurfaceMesh v d) Point v where
+  getProperty _ k = use (property k)
+  adjustProperty _ f k = modifying (property k) (fmap f)
+  replaceProperty _ k v = assign (property k) (Just v)
+  properties sm = return $ properties sm
+
+vertexProperties :: Property d Vertex p => SurfaceMesh v d -> V.Vector (Maybe p)
 vertexProperties sm = properties (_props sm)
 
-halfedgeProperties :: Property d Halfedge p => SurfaceMesh v d -> Container Halfedge p
+halfedgeProperties :: Property d Halfedge p => SurfaceMesh v d -> V.Vector (Maybe p)
 halfedgeProperties sm = properties (_props sm)
 
-edgeProperties :: Property d Edge p => SurfaceMesh v d -> Container Edge p
+edgeProperties :: Property d Edge p => SurfaceMesh v d -> V.Vector (Maybe p)
 edgeProperties sm = properties (_props sm)
 
-faceProperties :: Property d Face p => SurfaceMesh v d -> Container Face p
+faceProperties :: Property d Face p => SurfaceMesh v d -> V.Vector (Maybe p)
 faceProperties sm = properties (_props sm)
+
+pointProperties :: SurfaceMesh v d -> V.Vector (Maybe v)
+pointProperties = properties
 
 -------------------------------------------------------------------------------
 -- Full integrity check
@@ -522,7 +530,6 @@ hV g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity f x n p) <$> g
 
 hN :: Lens' (Connectivity Halfedge) Halfedge
 hN g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity f v x p) <$> g n
-
 hP :: Lens' (Connectivity Halfedge) Halfedge
 hP g (HalfedgeConnectivity f v n p) = (\x -> HalfedgeConnectivity f v n x) <$> g p
 
@@ -623,6 +630,12 @@ instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) where
   setFace _ h f = modify (\s -> setFace s h f)
   setHalfedgeF _ f h = modify (\s -> setHalfedge s f h)
 
+
+type instance GraphM.PointDescriptor (SurfaceMesh v d) = Point
+
+instance GraphM.PointGraph (SurfaceMesh v d) where
+  point _ v = Point v
+
 -------------------------------------------------------------------------------
 -- Garbage temp tests
 
@@ -641,23 +654,21 @@ foo =
 newtype MyProps2 = MyProps2 (IntMap Int, IntMap (Map String String))
 
 instance Property MyProps2 Vertex Int where
-  type Container Vertex = IntMap
   property (Vertex i) g (MyProps2 m) = MyProps2 <$> (_1.at i) g m
-  properties (MyProps2 m) = fst m
 
 instance Property MyProps2 Edge (Map String String) where
-  type Container Edge = IntMap
   property (Edge i) g (MyProps2 m) = MyProps2 <$> (_2.at i) g m
-  properties (MyProps2 m) = snd m
 
 foo2 :: SurfaceMesh (V3 Double) MyProps2
 foo2 =
   let sm = empty (MyProps2 (IntMap.empty, IntMap.empty)) :: SurfaceMesh (V3 Double) MyProps2
       f = do
-           -- GM.makeRegularPrism sm 3 (V3 (0::Double) 0 0) 7 13 True
-            v1 <- GraphM.addVertex sm
-            GraphM.addEdge sm
-            propertyOf (Vertex 0) ?= 7
-            propertyOf (Edge 0) ?= Map.fromList [("foo", "bar")]
-            (propertyOf (Edge 0)._Just.at "foo") ?= "alice"
+           GM.makeRegularPrism sm 3 (V3 0 0 0) 7 13 True
+            -- GM.makeTriangle sm (V3 2 2 2) (V3 0 0 0) (V3 1 1 1)
+            -- v1 <- GraphM.addVertex sm
+            -- GraphM.addEdge sm
+            -- propertyOf (Vertex 0) ?= 7
+            -- propertyOf (Edge 0) ?= Map.fromList [("foo", "bar")]
+            -- (propertyOf (Edge 0)._Just.at "foo") ?= "alice"
   in execState f sm
+
