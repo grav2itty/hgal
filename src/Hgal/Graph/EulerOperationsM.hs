@@ -16,7 +16,7 @@ import qualified Data.Vector.Mutable as VM
 
 import Hgal.Graph.ClassM hiding (addFace, addEdge)
 import qualified Hgal.Graph.ClassM as Graph (addFace, addEdge)
-import Hgal.Graph.Helpers
+import Hgal.Graph.HelpersM
 import Hgal.Graph.LoopsM
 
 import Debug.Trace

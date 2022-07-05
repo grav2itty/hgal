@@ -1,19 +1,16 @@
-import Test.Tasty
-import Test.Tasty.Hspec
+module Hgal.Data.SurfaceMeshTest where
 
-import Data.Foldable
 import Data.Maybe
 import Data.Traversable
 import Linear
+import Test.Tasty
+import Test.Tasty.Hspec
 
 import Hgal.Data.SurfaceMesh
 import Hgal.Graph.Loops
-import qualified Hgal.Graph.LoopsM as M
-import qualified Hgal.Graph.ClassM as M
 
-
-main :: IO ()
-main = do
+test_surfaceMesh :: IO TestTree
+test_surfaceMesh = do
   specs <- concat <$> mapM testSpecs
            [ loops
            , validateFixtures
@@ -22,7 +19,7 @@ main = do
            , embeddedVertex
            , borderVertex
            ]
-  defaultMain (testGroup "All Tests" [testGroup "Static fixture tests" specs])
+  return $ testGroup "SurfaceMesh" [testGroup "Static fixture tests" specs]
 
 u, v, w, x, y, z :: Vertex
 [u, v, w, x, y, z] = Vertex <$> [0..5]
@@ -135,4 +132,3 @@ surfaceFixture3 = sm'
   where vs = [V3 0 1 0, V3 0 0 0, V3 1 0 0, V3 1 1 0, V3 2 0 0, V3 2 1 0]
         (sm, [u, v, w, x, y, z]) = mapAccumL newVertex (empty ()) vs
         (sm', _) = mapAccumL newFace sm [[u, v, w, x], [x, w, y, z]]
-

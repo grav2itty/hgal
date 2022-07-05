@@ -29,6 +29,9 @@ class Monad m => HalfedgeGraph m g | g -> m where
   isBorderH :: g -> Halfedge g -> m Bool
   isBorderV :: g -> Vertex g -> m Bool
   nullHalfedge :: g -> m (Halfedge g)
+  vertices :: g -> m [Vertex g]
+  halfedges :: g -> m [Halfedge g]
+  edges :: g -> m [Edge g]
 
   showM :: g -> m String
 
@@ -54,6 +57,7 @@ class (Monad m, HalfedgeGraph m g) => FaceGraph m g | g -> m where
   halfedgeF :: g -> Face g -> m (Halfedge g)
 
   nullFace :: g -> m (Face g)
+  faces :: g -> m [Face g]
 
 class (Monad m, FaceGraph m g) => MutableFaceGraph m g | g -> m where
   addFace :: g -> m (Face g)
@@ -61,29 +65,33 @@ class (Monad m, FaceGraph m g) => MutableFaceGraph m g | g -> m where
   setFace :: g -> Halfedge g -> Face g -> m ()
   setHalfedgeF :: g -> Face g -> Halfedge g -> m ()
 
--- class
---   ( Monad m, MonadState g m,
---     Pure.HalfedgeGraph g,
---     Pure.Vertex g ~ Vertex g,
---     Pure.Halfedge g ~ Halfedge g,
---     Pure.Edge g ~ Edge g
---   ) => HalfedgeGraphS m g where
+class
+  ( MonadState g m,
+    HalfedgeGraph m g,
+    Pure.HalfedgeGraph g,
+    Pure.Vertex g ~ Vertex g,
+    Pure.Halfedge g ~ Halfedge g,
+    Pure.Edge g ~ Edge g
+  ) => HalfedgeGraphS m g where
 
--- class
---   ( HalfedgeGraphS m g,
---     Pure.MutableHalfedgeGraph g
---   ) => MutableHalfedgeGraphS m g where
+class
+  ( HalfedgeGraphS m g,
+    MutableHalfedgeGraph m g,
+    Pure.MutableHalfedgeGraph g
+  ) => MutableHalfedgeGraphS m g where
 
--- class
---   ( HalfedgeGraphS m g,
---     Pure.FaceGraph g,
---     Pure.Face g ~ Face g
---   ) => FaceGraphS m g where
+class
+  ( HalfedgeGraphS m g,
+    FaceGraph m g,
+    Pure.FaceGraph g,
+    Pure.Face g ~ Face g
+  ) => FaceGraphS m g where
 
--- class
---   ( FaceGraphS m g,
---     Pure.MutableFaceGraph g
---   ) => MutableFaceGraphS m g where
+class
+  ( FaceGraphS m g,
+    MutableFaceGraph m g,
+    Pure.MutableFaceGraph g
+  ) => MutableFaceGraphS m g where
 
 type family PointDescriptor a :: Type
 type Point a = PointDescriptor a

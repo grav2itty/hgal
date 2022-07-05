@@ -50,6 +50,7 @@ library:
     - Hgal.Graph.Generators
     - Hgal.Graph.GeneratorsM
     - Hgal.Graph.Helpers
+    - Hgal.Graph.HelpersM
     - Hgal.Graph.EulerOperations
     - Hgal.Graph.EulerOperationsM
     - Hgal.Graph.Loops
@@ -60,7 +61,7 @@ library:
 
 tests:
   hgal-test:
-    main:                Spec.hs
+    main:                Driver.hs
     source-dirs:         test
     ghc-options:
     - -threaded
@@ -69,4 +70,8 @@ tests:
     dependencies:
     - hgal
     - tasty
+
+    - tasty-discover >= 4.2.4
     - tasty-hspec
+    build-tools:
+    - tasty-discover:tasty-discover

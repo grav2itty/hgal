@@ -29,6 +29,7 @@ library
       Hgal.Graph.Generators
       Hgal.Graph.GeneratorsM
       Hgal.Graph.Helpers
+      Hgal.Graph.HelpersM
       Hgal.Graph.EulerOperations
       Hgal.Graph.EulerOperationsM
       Hgal.Graph.Loops
@@ -37,6 +38,7 @@ library
       Hgal.Data.PropertyM
       Hgal.Data.SurfaceMesh
   other-modules:
+      Hgal.Graph.Predicates
       Paths_hgal
   hs-source-dirs:
       src
@@ -63,8 +65,10 @@ library
 
 test-suite hgal-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Driver.hs
   other-modules:
+      Hgal.Data.SurfaceMeshTest
+      Hgal.Graph.EulerOperationsTest
       Paths_hgal
   hs-source-dirs:
       test
@@ -79,6 +83,8 @@ test-suite hgal-test
       TupleSections
       TypeFamilies
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      tasty-discover:tasty-discover
   build-depends:
       base >=4.7 && <5
     , containers
@@ -87,6 +93,7 @@ test-suite hgal-test
     , linear
     , mtl
     , tasty
+    , tasty-discover >=4.2.4
     , tasty-hspec
     , transformers
     , vector

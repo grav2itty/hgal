@@ -26,6 +26,9 @@ class HalfedgeGraph g where
   isBorderH :: g -> Halfedge g -> Bool
   isBorderV :: g -> Vertex g -> Bool
   nullHalfedge :: g -> Halfedge g
+  vertices :: g -> [Vertex g]
+  halfedges :: g -> [Halfedge g]
+  edges :: g -> [Edge g]
 
 
 class HalfedgeGraph g => MutableHalfedgeGraph g where
@@ -47,6 +50,7 @@ class HalfedgeGraph g => FaceGraph g where
   halfedgeF :: g -> Face g -> Halfedge g
 
   nullFace :: g -> Face g
+  faces :: g -> [Face g]
 
 class FaceGraph g => MutableFaceGraph g where
   addFace :: g -> (Face g, g)

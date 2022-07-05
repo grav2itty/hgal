@@ -11,6 +11,8 @@ import Data.Bifunctor
 import Data.Bits
 import Data.Either
 import Data.Foldable (length, toList)
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import Data.Maybe
 import Data.Sequence as Seq hiding (empty, length)
 import qualified Data.Sequence as Seq (empty)
@@ -29,8 +31,6 @@ import qualified Hgal.Graph.EulerOperationsM as EulerM
 import Hgal.Graph.Generators
 import qualified Hgal.Graph.GeneratorsM as GM
 import Linear
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -111,6 +111,9 @@ data SurfaceMesh v d = SurfaceMesh
   , _hconn :: Seq (Connectivity Halfedge)
   , _fconn :: Seq (Connectivity Face)
   , _vpoint :: Seq (Maybe v)
+  , _vremoved :: IntMap Bool
+  , _eremoved :: IntMap Bool
+  , _fremoved :: IntMap Bool
   , _props :: d
   }
 
@@ -152,6 +155,8 @@ instance Element Vertex where
     | h == nullE = True
     | otherwise = any (isBorder sm) (halfedgesAroundTarget sm h)
     where h = halfedge sm v
+
+  isRemoved sm (Vertex i) = fromMaybe False $ IntMap.lookup i (_vremoved sm)
 
   degree sm v
     | h == nullE = 0
@@ -204,6 +209,8 @@ instance Element Halfedge where
 
   isBorder sm = (== nullE) . face sm
 
+  isRemoved sm (Halfedge i) = fromMaybe False $ IntMap.lookup i (_eremoved sm)
+
   halfedge _ h = h
   vertex sm h = view (conn h.hV) sm
   face sm h = view (conn h.hF) sm
@@ -233,6 +240,8 @@ instance Element Edge where
 
   isBorder sm e = isBorder sm h || isBorder sm (opposite h)
     where h = halfedge sm e
+
+  isRemoved sm (Edge i) = fromMaybe False $ IntMap.lookup i (_eremoved sm)
 
   halfedge _ (Edge i) = Halfedge i
   next sm = edge sm . next sm . halfedge sm
@@ -265,6 +274,8 @@ instance Element Face where
     | otherwise = any (isBorder sm) (halfedgesAroundFace sm h)
     where h = halfedge sm v
 
+  isRemoved sm (Face i) = fromMaybe False $ IntMap.lookup i (_fremoved sm)
+
   degree sm v
     | h == nullE = 0
     | otherwise = length $ verticesAroundFace sm h
@@ -283,6 +294,8 @@ empty :: d -> SurfaceMesh v d
 empty = SurfaceMesh
    Seq.empty Seq.empty Seq.empty
    Seq.empty
+   IntMap.empty IntMap.empty IntMap.empty
+
 
 -------------------------------------------------------------------------------
 -- Elements
@@ -336,13 +349,13 @@ newFace sm vs = swap $ Euler.addFace sm vs
 -- Removing elements
 
 removeVertex :: SurfaceMesh v d -> Vertex -> SurfaceMesh v d
-removeVertex sm v = sm
+removeVertex sm (Vertex i) = vremoved.at i ?~ True $ sm
 
 removeEdge :: SurfaceMesh v d -> Edge -> SurfaceMesh v d
-removeEdge sm v = sm
+removeEdge sm (Edge i) = eremoved.at i ?~ True $ sm
 
 removeFace :: SurfaceMesh v d -> Face -> SurfaceMesh v d
-removeFace sm v = sm
+removeFace sm (Face i) = fremoved.at i ?~ True $ sm
 
 -------------------------------------------------------------------------------
 -- Connectivity
@@ -558,6 +571,9 @@ instance Graph.HalfedgeGraph (SurfaceMesh v d) where
   isBorderH = isBorder
   isBorderV = isBorder
   nullHalfedge _ = nullE
+  vertices = vertices
+  halfedges = halfedges
+  edges = edges
 
 instance Graph.MutableHalfedgeGraph (SurfaceMesh v d) where
   addVertex = addVertex
@@ -575,6 +591,7 @@ instance Graph.FaceGraph (SurfaceMesh v d) where
   halfedgeF = halfedge
 
   nullFace _ = nullE
+  faces = faces
 
 instance Graph.MutableFaceGraph (SurfaceMesh v d) where
   addFace = addFace
@@ -604,6 +621,9 @@ instance GraphM.HalfedgeGraph (St v d) (SurfaceMesh v d) where
   isBorderH _ h = gets (`isBorder` h)
   isBorderV _ h = gets (`isBorder` h)
   nullHalfedge _ = return nullE
+  vertices _ =  gets vertices
+  halfedges _ = gets halfedges
+  edges _ = gets edges
 
   showM _ = gets show
 
@@ -623,6 +643,7 @@ instance GraphM.FaceGraph (St v d) (SurfaceMesh v d) where
   halfedgeF _ h = gets (`halfedge` h)
 
   nullFace _ = return nullE
+  faces _ = gets faces
 
 instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) where
   addFace _ = state addFace
@@ -630,6 +651,10 @@ instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) where
   setFace _ h f = modify (\s -> setFace s h f)
   setHalfedgeF _ f h = modify (\s -> setHalfedge s f h)
 
+instance GraphM.HalfedgeGraphS (St v d) (SurfaceMesh v d)
+instance GraphM.MutableHalfedgeGraphS (St v d) (SurfaceMesh v d)
+instance GraphM.FaceGraphS (St v d) (SurfaceMesh v d)
+instance GraphM.MutableFaceGraphS (St v d) (SurfaceMesh v d)
 
 type instance GraphM.PointDescriptor (SurfaceMesh v d) = Point
 
@@ -650,6 +675,15 @@ foo =
             EulerM.addFace sm [v1, v2, v3]
             return ()
   in execState f sm
+
+foo1 :: SurfaceMesh () ()
+foo1 =
+  let sm = empty ()
+      (v1, sm0) = Graph.addVertex sm
+      (v2, sm1) = Graph.addVertex sm0
+      (v3, sm2) = Graph.addVertex sm1
+      (_, sm3)  = Euler.addFace sm2 [v1, v2, v3]
+  in sm3
 
 newtype MyProps2 = MyProps2 (IntMap Int, IntMap (Map String String))
 
