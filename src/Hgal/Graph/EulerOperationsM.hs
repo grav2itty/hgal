@@ -7,31 +7,25 @@ import Control.Lens (both, findMOf, forMOf_, traversed, (??))
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
-import Data.Bits
 import Data.Containers.ListUtils
 import Data.Foldable
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
-import Hgal.Graph.ClassM hiding (addFace, addEdge)
-import qualified Hgal.Graph.ClassM as Graph (addFace, addEdge)
+import Hgal.Graph.ClassM hiding (addEdge, addFace)
+import qualified Hgal.Graph.ClassM as Graph (addEdge, addFace)
 import Hgal.Graph.HelpersM
 import Hgal.Graph.LoopsM
 
-import Debug.Trace
+-- import Debug.Trace
 
 
-addFace :: Monad m
-        => Foldable t
-        => Eq (Halfedge g)
-        => Eq (Face g)
-        => Ord (Vertex g)
-        => MutableHalfedgeGraph m g
-        => MutableFaceGraph m g
-        => g
-        -> t (Vertex g)
-        -> m (Face g)
+addFace :: Foldable t
+        => MutableHalfedgeGraph m g v h e
+        => MutableFaceGraph m g v h e f
+        => (Ord v, Eq h, Eq f)
+        => g -> t v -> m f
 addFace g vs = do
   let
     n = length vs
@@ -42,7 +36,7 @@ addFace g vs = do
     vertices = V.fromList vList
 
   uvs <- forM indicesTuple
-           (\(i, ii) -> halfedgeVV g (vertices V.! i) (vertices V.! ii))
+           (\(i, ii) -> halfedgeVV (vertices V.! i) (vertices V.! ii))
   nullF <- nullFace g
   nullH <- nullHalfedge g
 
@@ -53,10 +47,10 @@ addFace g vs = do
     checkVerticesU = if nubOrd vList /= vList then Nothing else Just ()
     checkVertex v = do
       p1 <- isIsolated g v
-      p2 <- isBorderV g v
+      p2 <- isBorder v
       return $ if p1 || p2 then Just () else Nothing
     checkHalfedge i = do
-      p <- isBorderH g h
+      p <- isBorder h
       return $ if isNew V.! i || p then Just () else Nothing
         where h = halfedges V.! i
     allCheck = (MaybeT . pure $ checkVertexCount >> checkVerticesU) >>
@@ -71,26 +65,26 @@ addFace g vs = do
           let
             innerPrev = halfedges V.! i
             innerNext = halfedges V.! ii
-          p <- lift $ next g innerPrev
+          p <- lift $ next innerPrev
           if p == innerNext then return []
             else do
-              outerPrev <- lift $ opposite g innerNext
-              outerNext <- lift $ opposite g innerPrev
+              outerPrev <- lift $ opposite innerNext
+              outerNext <- lift $ opposite innerPrev
               let
                 worker hx = do
-                  n <- lift $ (opposite g <=< next g) hx
-                  isBorder <- lift $ isBorderH g n
+                  n <- lift $ (opposite <=< next) hx
+                  isBorder <- lift $ isBorder n
                   if not isBorder || (n == innerPrev) then worker n
                     else return $ assert isBorder n
               borderPrev <- worker outerPrev
               borderNext <- lift $ do
-                p <- next g borderPrev
-                isBorder <- isBorderH g p
-                return $ assert isBorder p
+                p <- next borderPrev
+                isB <- isBorder p
+                return $ assert isB p
               if borderNext == innerNext then mzero
                 else do
-                  patchStart <- lift $ next g innerPrev
-                  patchEnd <- lift $ prev g innerNext
+                  patchStart <- lift $ next innerPrev
+                  patchEnd <- lift $ prev innerNext
                   return [ (borderPrev, patchStart), (patchEnd, borderNext)
                          , (innerPrev, innerNext) ]
 
@@ -98,11 +92,11 @@ addFace g vs = do
       when (isNew V.! i) $ do
         ne <- lift $ addEdge g (vertices V.! i) (vertices V.! ii)
         he <- lift $ do
-          h <- halfedgeE g ne
-          s <- source g h
+          h <- halfedge ne
+          s <- source h
           return $ assert (h /= nullH && s == vertices V.! i) h
         modify (V.modify (\vec -> VM.write vec i he))
-        lift $ (setFace g ?? nullF) =<< opposite g he
+        lift $ (setFace ?? nullF) =<< opposite he
 
     setupHalfedgesF halfedges' (i, ii) = do
       let
@@ -112,34 +106,34 @@ addFace g vs = do
 
       if bothOld (i, ii) then return []
         else do
-          outerPrev <- opposite g innerNext
-          outerNext <- opposite g innerPrev
+          outerPrev <- opposite innerNext
+          outerNext <- opposite innerPrev
           let innerLink = (innerPrev, innerNext)
           if
             | (isNew V.! i) && (isNew V.! ii) -> do
-              hv <- halfedgeV g v
+              hv <- halfedge v
               nullH <- nullHalfedge g
-              bh <- isBorderH g hv
+              bh <- isBorder hv
               hv' <- if hv == nullH || bh then return hv
                 else do
-                  hAroundV <- halfedgesAroundTarget g hv
-                  r <- findMOf traversed (isBorderH g) hAroundV
+                  hAroundV <- halfedgesAroundTarget hv
+                  r <- findMOf traversed isBorder hAroundV
                   return $ fromMaybe nullH r
               if hv' == nullH
                 then do
-                  setHalfedgeV g v outerPrev
+                  setHalfedge v outerPrev
                   return [innerLink, (outerPrev, outerNext)]
                 else do
                   let borderPrev' = hv'
-                  borderNext' <- next g borderPrev'
+                  borderNext' <- next borderPrev'
                   return [innerLink, (borderPrev', outerNext), (outerPrev, borderNext')]
             | (isNew V.! i) -> do
-              borderPrev <- prev g innerNext
-              setHalfedgeV g v borderPrev
+              borderPrev <- prev innerNext
+              setHalfedge v borderPrev
               return [innerLink, (borderPrev, outerNext)]
             | (isNew V.! ii) -> do
-              borderNext <- next g innerPrev
-              setHalfedgeV g v outerPrev
+              borderNext <- next innerPrev
+              setHalfedge v outerPrev
               return [innerLink, (outerPrev, borderNext)]
 
 
@@ -149,229 +143,200 @@ addFace g vs = do
     Just nextCache -> execStateT createMissingEdges halfedges >>= \halfedges' ->
       do
         f <- Graph.addFace g
-        setHalfedgeF g f (halfedges' V.! (n - 1))
+        setHalfedge f (halfedges' V.! (n - 1))
         nextCache2 <- forM indicesTuple (setupHalfedgesF halfedges')
-        forM_ indicesTuple (\(i, _) -> setFace g (halfedges' V.! i) f)
-        forMOf_ (both.traversed.traversed) (nextCache, nextCache2) (uncurry (setNext g))
+        forM_ indicesTuple (\(i, _) -> setFace (halfedges' V.! i) f)
+        forMOf_ (both.traversed.traversed) (nextCache, nextCache2) (uncurry setNext)
         forM_ vertices (adjustIncomingHalfedge g)
         return f
 
-addEdge :: Monad m
-        => MutableHalfedgeGraph m g
-        => g
-        -> Vertex g
-        -> Vertex g
-        -> m (Edge g)
+addEdge :: MutableHalfedgeGraph m g v h e
+        => g -> v -> v -> m e
 addEdge g s t = do
   e <- Graph.addEdge g
-  (setTarget g ?? t) =<< halfedgeE g e
-  (setTarget g ?? s) =<< (opposite g <=< halfedgeE g) e
+  (setTarget ?? t) =<< halfedge e
+  (setTarget ?? s) =<< (opposite <=< halfedge) e
   return e
 
-splitVertex :: Monad m
-            => Eq (Halfedge g)
-            => MutableHalfedgeGraph m g
-            => MutableFaceGraph m g
-            => g
-            -> Halfedge g
-            -> Halfedge g
-            -> m (Halfedge g)
+splitVertex :: MutableHalfedgeGraph m g v h e
+            => MutableFaceGraph m g v h e f
+            => Eq h
+            => g -> h -> h -> m h
 splitVertex g h1 h2 = do
   -- add missing assert here
 
-  hnew <- halfedgeE g =<< Graph.addEdge g
-  hnewopp <- opposite g hnew
+  hnew <- halfedge =<< Graph.addEdge g
+  hnewopp <- opposite hnew
   vnew <- addVertex g
-  insertHalfedge g hnew h2
-  insertHalfedge g hnewopp h1
-  setTarget g hnew =<< target g h1
+  insertHalfedge hnew h2
+  insertHalfedge hnewopp h1
+  setTarget hnew =<< target h1
 
   let
     worker hx = do
-      setTarget g hx vnew
-      n <- (opposite g <=< next g) hx
+      setTarget hx vnew
+      n <- (opposite <=< next) hx
       if n /= hnewopp
         then worker n
         else return n
   hnewopp' <- worker hnewopp
 
-  setVertexHalfedge g hnew
-  setVertexHalfedge g hnewopp'
+  setVertexHalfedge hnew
+  setVertexHalfedge hnewopp'
   return hnew
 
-joinVertex :: Monad m
-           => Eq (Halfedge g)
-           => Eq (Vertex g)
-           => MutableHalfedgeGraph m g
-           => MutableFaceGraph m g
-           => g
-           -> Halfedge g
-           -> m (Halfedge g)
+joinVertex :: MutableHalfedgeGraph m g v h e
+           => MutableFaceGraph m g v h e f
+           => (Eq v, Eq h)
+           => g -> h -> m h
 joinVertex g h = do
-  hop <- opposite g h
-  hprev <- prev g hop
-  gprev <- prev g h
-  hnext <- next g hop
-  gnext <- next g h
-  v_to_remove <- target g hop
-  v <- target g h
+  hop <- opposite h
+  hprev <- prev hop
+  gprev <- prev h
+  hnext <- next hop
+  gnext <- next h
+  v_to_remove <- target hop
+  v <- target h
 
   -- add missing assert here
 
-  halfedgeAroundTarget g (\g' hx -> do
-                             t <- target g' hx
+  halfedgeAroundTarget g (\_ hx -> do
+                             t <- target hx
                              assert (t == v_to_remove) $
-                               setTarget g' hx v
+                               setTarget hx v
                          ) hop
 
-  setNext g hprev hnext
-  setNext g gprev gnext
-  setHalfedgeV g v gprev
+  setNext hprev hnext
+  setNext gprev gnext
+  setHalfedge v gprev
 
-  bg <- isBorderH g gprev
+  bg <- isBorder gprev
   unless bg $ do
-    (setHalfedgeF g ?? gprev) =<< face g gprev
+    (setHalfedge ?? gprev) =<< face gprev
 
-  bh <- isBorderH g hprev
+  bh <- isBorder hprev
   unless bh $ do
-    (setHalfedgeF g ?? hprev) =<< face g hprev
+    (setHalfedge ?? hprev) =<< face hprev
 
-  removeEdge g =<< edge g h
-  removeVertex g v_to_remove
+  remove =<< edge h
+  remove v_to_remove
 
   return hprev
 
-
-fillHole :: Monad m
-         => Eq (Halfedge g)
-         => MutableHalfedgeGraph m g
-         => MutableFaceGraph m g
-         => g
-         -> Halfedge g
-         -> m ()
+fillHole :: MutableHalfedgeGraph m g v h e
+         => MutableFaceGraph m g v h e f
+         => Eq h
+         => g -> h -> m ()
 fillHole g h = do
   f <- Graph.addFace g
-  halfedgeAroundFace g (\g' h' -> setFace g' h' f) h
-  setHalfedgeF g f h
+  halfedgeAroundFace g (\_ h' -> setFace h' f) h
+  setHalfedge f h
 
-addCenterVertex :: Monad m
-                => Eq (Halfedge g)
-                => MutableHalfedgeGraph m g
-                => MutableFaceGraph m g
-                => g
-                -> Halfedge g
-                -> m (Halfedge g)
+addCenterVertex :: MutableHalfedgeGraph m g v h e
+                => MutableFaceGraph m g v h e f
+                => Eq h
+                => g -> h -> m h
 addCenterVertex g h = do
-  hnew <- halfedgeE g =<< Graph.addEdge g
+  hnew <- halfedge =<< Graph.addEdge g
   vnew <- addVertex g
-  closeTip g hnew vnew
+  closeTip hnew vnew
 
-  (insertTip g ?? h) =<< opposite g hnew
-  setFace g hnew =<< face g h
-  (setHalfedgeF g ?? h) =<< face g h
+  (insertTip ?? h) =<< opposite hnew
+  setFace hnew =<< face h
+  (setHalfedge ?? h) =<< face h
 
-  h2 <- next g =<< opposite g hnew
+  h2 <- next =<< opposite hnew
   let
     worker hx = do
-      n <- next g hx
+      n <- next hx
       when (n /= hnew) $ do
-        gnew <- halfedgeE g =<< Graph.addEdge g
-        insertTip g gnew hnew
-        (insertTip g ?? hx) =<< opposite g gnew
+        gnew <- halfedge =<< Graph.addEdge g
+        insertTip gnew hnew
+        (insertTip ?? hx) =<< opposite gnew
         fnew <- Graph.addFace g
-        setFace g hx fnew
-        setFace g gnew fnew
-        (setFace g ?? fnew) =<< next g gnew
-        (setHalfedgeF g ?? hx) =<< face g hx
-        (worker <=< next g <=< opposite g) gnew
+        setFace hx fnew
+        setFace gnew fnew
+        (setFace ?? fnew) =<< next gnew
+        (setHalfedge ?? hx) =<< face hx
+        (worker <=< next <=< opposite) gnew
   worker h2
 
-  nhnew <- next g hnew
-  setFace g nhnew =<< face g hnew
-  setVertexHalfedge g hnew
+  nhnew <- next hnew
+  setFace nhnew =<< face hnew
+  setVertexHalfedge hnew
   return hnew
 
-removeCenterVertex :: Monad m
-                   => Eq (Halfedge g)
-                   => MutableHalfedgeGraph m g
-                   => MutableFaceGraph m g
-                   => g
-                   -> Halfedge g
-                   -> m (Halfedge g)
+removeCenterVertex :: MutableHalfedgeGraph m g v h e
+                   => MutableFaceGraph m g v h e f
+                   => Eq h
+                   => g -> h -> m h
 removeCenterVertex g h = do
-  h2 <- (opposite g <=< next g) h
-  hret <- prev g h
+  h2 <- (opposite <=< next) h
+  hret <- prev h
   let
     worker hx = when (hx /= h) $ do
-      gprev <- prev g hx
-      setVertexHalfedge g gprev
-      removeTip g gprev
+      gprev <- prev hx
+      setVertexHalfedge gprev
+      removeTip gprev
 
-      removeFace g =<< face g hx
+      remove =<< face hx
 
-      gnext <- (opposite g <=< next g) hx
-      removeEdge g =<< edge g hx
+      gnext <- (opposite <=< next) hx
+      remove =<< edge hx
       worker gnext
   worker h2
-  setVertexHalfedge g hret
-  removeTip g hret
-  removeVertex g =<< target g h
-  removeEdge g =<< edge g h
-  setFaceInFaceLoop g hret =<< face g hret
-  (setHalfedgeF g ?? hret) =<< face g hret
+  setVertexHalfedge hret
+  removeTip hret
+  remove =<< target h
+  remove =<< edge h
+  setFaceInFaceLoop hret =<< face hret
+  (setHalfedge ?? hret) =<< face hret
 
   return hret
 
-joinFace :: Monad m
-         => Eq (Halfedge g)
-         => MutableHalfedgeGraph m g
-         => MutableFaceGraph m g
-         => g
-         -> Halfedge g
-         -> m (Halfedge g)
+joinFace :: MutableHalfedgeGraph m g v h e
+         => MutableFaceGraph m g v h e f
+         => Eq h
+         => g -> h -> m h
 joinFace g h = do
-  hop <- opposite g h
-  hprev <- prev g h
-  gprev <- prev g hop
-  f <- face g h
-  f2 <- face g hop
+  hop <- opposite h
+  hprev <- prev h
+  gprev <- prev hop
+  f <- face h
+  f2 <- face hop
 
-  removeTip g hprev
-  removeTip g gprev
+  removeTip hprev
+  removeTip gprev
 
-  (unless ?? removeFace g f2) =<< isBorderH g hop
-  fnull <- isBorderH g h
+  (unless ?? remove f2) =<< isBorder hop
+  fnull <- isBorder h
 
   let
     worker hx = when (hx /= gprev) $ do
-      n <- next g hx
-      setFace g n f
+      n <- next hx
+      setFace n f
       worker n
   worker hprev
 
-  unless fnull (setHalfedgeF g f hprev)
-  (setHalfedgeV g ?? hprev) =<< target g hprev
-  (setHalfedgeV g ?? gprev) =<< target g gprev
+  unless fnull (setHalfedge f hprev)
+  (setHalfedge ?? hprev) =<< target hprev
+  (setHalfedge ?? gprev) =<< target gprev
 
-  removeEdge g =<< edge g h
+  remove =<< edge h
   return hprev
 
-splitFace :: Monad m
-          => Eq (Halfedge g)
-          => MutableHalfedgeGraph m g
-          => MutableFaceGraph m g
-          => g
-          -> Halfedge g
-          -> Halfedge g
-          -> m (Halfedge g)
+splitFace :: MutableHalfedgeGraph m g v h e
+          => MutableFaceGraph m g v h e f
+          => Eq h
+          => g -> h -> h -> m h
 splitFace g h1 h2 = do
-  hnew <- halfedgeE g =<< Graph.addEdge g
+  hnew <- halfedge =<< Graph.addEdge g
   fnew <- Graph.addFace g
-  insertTip g hnew h2
-  (insertTip g ?? h1) =<< opposite g hnew
-  setFace g hnew =<< face g h1
-  (setFaceInFaceLoop g ?? fnew) =<< opposite g hnew
-  (setHalfedgeF g ?? hnew) =<< face g hnew
-  hnew' <- opposite g hnew
-  (setHalfedgeF g ?? hnew') =<< face g hnew'
+  insertTip hnew h2
+  (insertTip ?? h1) =<< opposite hnew
+  setFace hnew =<< face h1
+  (setFaceInFaceLoop ?? fnew) =<< opposite hnew
+  (setHalfedge ?? hnew) =<< face hnew
+  hnew' <- opposite hnew
+  (setHalfedge ?? hnew') =<< face hnew'
   return hnew

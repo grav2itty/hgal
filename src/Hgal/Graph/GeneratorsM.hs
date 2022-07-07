@@ -3,7 +3,6 @@ module Hgal.Graph.GeneratorsM where
 import Control.Exception
 import Control.Lens
 import Control.Monad
-import Control.Monad.State
 import Data.Maybe
 import Data.Vector ((!))
 import qualified Data.Vector as V
@@ -14,61 +13,57 @@ import Hgal.Data.PropertyM
 import qualified Hgal.Graph.EulerOperationsM as Euler
 
 
-makeTriangle :: MutableHalfedgeGraph m g
-             => MutableFaceGraph m g
-             => PointGraph g
-             => Property m g (Point g) p
-             => g
-             -> p -> p -> p
-             -> m (Halfedge g)
+makeTriangle :: MutableHalfedgeGraph m g v h e
+             => MutableFaceGraph m g v h e f
+             => PointGraph g v k
+             => Property m g k p
+             => g -> p -> p -> p -> m h
 makeTriangle g p0 p1 p2 = do
   v0 <- addVertex g
   v1 <- addVertex g
   v2 <- addVertex g
-  h0 <- halfedgeE g =<< addEdge g
-  h1 <- halfedgeE g =<< addEdge g
-  h2 <- halfedgeE g =<< addEdge g
-  setNext g h0 h1
-  setNext g h1 h2
-  setNext g h2 h0
-  setTarget g h0 v1
-  setTarget g h1 v2
-  setTarget g h2 v0
-  setHalfedgeV g v1 h0
-  setHalfedgeV g v2 h1
-  setHalfedgeV g v0 h2
+  h0 <- halfedge =<< addEdge g
+  h1 <- halfedge =<< addEdge g
+  h2 <- halfedge =<< addEdge g
+  setNext h0 h1
+  setNext h1 h2
+  setNext h2 h0
+  setTarget h0 v1
+  setTarget h1 v2
+  setTarget  h2 v0
+  setHalfedge v1 h0
+  setHalfedge v2 h1
+  setHalfedge v0 h2
   f <- addFace g
-  setFace g h0 f
-  setFace g h1 f
-  setFace g h2 f
-  setHalfedgeF g f h0
-  h0' <- opposite g h0
-  h1' <- opposite g h1
-  h2' <- opposite g h2
-  setNext g h0' h2'
-  setNext g h2' h1'
-  setNext g h1' h0'
-  setTarget g h0' v0
-  setTarget g h1' v1
-  setTarget g h2' v2
+  setFace h0 f
+  setFace h1 f
+  setFace h2 f
+  setHalfedge f h0
+  h0' <- opposite h0
+  h1' <- opposite h1
+  h2' <- opposite h2
+  setNext h0' h2'
+  setNext h2' h1'
+  setNext h1' h0'
+  setTarget h0' v0
+  setTarget h1' v1
+  setTarget h2' v2
   nullF <- nullFace g
-  setFace g h0' nullF
-  setFace g h1' nullF
-  setFace g h2' nullF
+  setFace h0' nullF
+  setFace h1' nullF
+  setFace h2' nullF
 
   replaceProperty g (point g v0) p0
   replaceProperty g (point g v1) p1
   replaceProperty g (point g v2) p2
 
-  opposite g h2'
+  opposite h2'
 
-makeQuad :: MutableHalfedgeGraph m g
-         => MutableFaceGraph m g
-         => PointGraph g
-         => Property m g (Point g) p
-         => g
-         -> p -> p -> p -> p
-         -> m (Halfedge g)
+makeQuad :: MutableHalfedgeGraph m g v h e
+         => MutableFaceGraph m g v h e f
+         => PointGraph g v k
+         => Property m g k p
+         => g -> p -> p -> p -> p -> m h
 makeQuad g p0 p1 p2 p3 = do
   v0 <- addVertex g
   v1 <- addVertex g
@@ -80,103 +75,91 @@ makeQuad g p0 p1 p2 p3 = do
   replaceProperty g (point g v3) p3
   formQuad g v0 v2 v2 v3
 
-formQuad :: MutableHalfedgeGraph m g
-         => MutableFaceGraph m g
-         => g
-         -> Vertex g -> Vertex g -> Vertex g -> Vertex g
-         -> m (Halfedge g)
+formQuad :: MutableHalfedgeGraph m g v h e
+         => MutableFaceGraph m g v h e f
+         => g -> v -> v -> v -> v -> m h
 formQuad g v0 v1 v2 v3 = do
-  h0 <- halfedgeE g =<< addEdge g
-  h1 <- halfedgeE g =<< addEdge g
-  h2 <- halfedgeE g =<< addEdge g
-  h3 <- halfedgeE g =<< addEdge g
-  setNext g h0 h1
-  setNext g h1 h2
-  setNext g h2 h3
-  setNext g h3 h0
-  setTarget g h0 v1
-  setTarget g h1 v2
-  setTarget g h2 v3
-  setTarget g h3 v0
-  setHalfedgeV g v1 h0
-  setHalfedgeV g v2 h1
-  setHalfedgeV g v3 h2
-  setHalfedgeV g v0 h3
+  h0 <- halfedge =<< addEdge g
+  h1 <- halfedge =<< addEdge g
+  h2 <- halfedge =<< addEdge g
+  h3 <- halfedge =<< addEdge g
+  setNext h0 h1
+  setNext h1 h2
+  setNext h2 h3
+  setNext h3 h0
+  setTarget h0 v1
+  setTarget h1 v2
+  setTarget h2 v3
+  setTarget h3 v0
+  setHalfedge v1 h0
+  setHalfedge v2 h1
+  setHalfedge v3 h2
+  setHalfedge v0 h3
   f <- addFace g
-  setFace g h0 f
-  setFace g h1 f
-  setFace g h2 f
-  setFace g h3 f
-  setHalfedgeF g f h0
-  h0' <- opposite g h0
-  h1' <- opposite g h1
-  h2' <- opposite g h2
-  h3' <- opposite g h3
-  setNext g h0' h3'
-  setNext g h3' h2'
-  setNext g h2' h1'
-  setNext g h1' h0'
-  setTarget g h0' v0
-  setTarget g h1' v1
-  setTarget g h2' v2
-  setTarget g h3' v3
+  setFace h0 f
+  setFace h1 f
+  setFace h2 f
+  setFace h3 f
+  setHalfedge f h0
+  h0' <- opposite h0
+  h1' <- opposite h1
+  h2' <- opposite h2
+  h3' <- opposite h3
+  setNext h0' h3'
+  setNext h3' h2'
+  setNext h2' h1'
+  setNext h1' h0'
+  setTarget h0' v0
+  setTarget h1' v1
+  setTarget h2' v2
+  setTarget h3' v3
   nullF <- nullFace g
-  setFace g h0' nullF
-  setFace g h1' nullF
-  setFace g h2' nullF
-  setFace g h3' nullF
-  opposite g h3'
+  setFace h0' nullF
+  setFace h1' nullF
+  setFace h2' nullF
+  setFace h3' nullF
+  opposite h3'
 
-makeHexahedron :: Eq (Halfedge g)
-               => MutableHalfedgeGraph m g
-               => MutableFaceGraph m g
-               => PointGraph g
-               => Property m g (Point g) p
-               => g
-               -> p -> p -> p -> p
-               -> p -> p -> p -> p
-               -> m (Halfedge g)
+makeHexahedron :: MutableHalfedgeGraph m g v h e
+               => MutableFaceGraph m g v h e f
+               => PointGraph g v k
+               => Property m g k p
+               => Eq h
+               => g -> p -> p -> p -> p -> p -> p -> p -> p -> m h
 makeHexahedron g p0 p1 p2 p3 p4 p5 p6 p7 = do
   vs <- replicateM 8 (addVertex g)
   let [v0, v1, v2, v3, v4, v5, v6, v7] = vs
   ht <- formQuad g v4 v5 v6 v7
-  hb <- prev g =<< formQuad g v0 v3 v2 v1
+  hb <- prev =<< formQuad g v0 v3 v2 v1
   let
     worker (ht', hb') _ = do
-      h <- halfedgeE g =<< addEdge g
-      setTarget g h =<< target g hb'
-      setNext g h =<< opposite g hb'
-      (setNext g ?? h) =<< (opposite g <=< prev g) ht'
-      h' <- opposite g h
-      setTarget g h' =<< (source g <=< prev g) ht'
-      setNext g h' =<< (opposite g <=< next g <=< next g) ht'
-      (setNext g ?? h) =<< (opposite g <=< next g) hb'
-      liftM2 (,) (prev g ht) (next g hb)
+      h <- halfedge =<< addEdge g
+      setTarget h =<< target hb'
+      setNext h =<< opposite hb'
+      (setNext ?? h) =<< (opposite <=< prev) ht'
+      h' <- opposite h
+      setTarget h' =<< (source <=< prev) ht'
+      setNext h' =<< (opposite <=< next <=< next) ht'
+      (setNext ?? h) =<< (opposite <=< next) hb'
+      liftM2 (,) (prev ht) (next hb)
     worker2 hb' _ = do
-      Euler.fillHole g =<< opposite g hb'
-      next g hb'
+      Euler.fillHole g =<< opposite hb'
+      next hb'
   (_, hb') <- foldM worker (ht, hb) [0..3]
   hb'' <- foldM worker2 hb' [0..3]
 
   mapM_ (uncurry $ replaceProperty g) (zip (point g <$> vs) [p0, p1, p2, p3, p4, p5, p6, p7])
 
-  (next g <=< next g) hb''
+  (next <=< next) hb''
 
-makeRegularPrism :: Floating a
+makeRegularPrism :: MutableHalfedgeGraph m g v h e
+                 => MutableFaceGraph m g v h e f
+                 => PointGraph g v k
+                 => Property m g k (p a)
+                 => (Ord v, Eq f, Eq h)
+                 => Floating a
                  => R3 p
-                 => Eq (Halfedge g)
-                 => Eq (Face g)
-                 => Ord (Vertex g)
-                 => MutableHalfedgeGraph m g
-                 => MutableFaceGraph m g
-                 => PointGraph g
-                 => Property m g (Point g) (p a)
-                 => g
-                 -> Int
-                 -> p a
-                 -> a -> a
-                 -> Bool
-                 -> m (Halfedge g)
+                 => g -> Int -> p a -> a -> a -> Bool -> m h
 makeRegularPrism g n center height radius isClosed = do
   let step = assert (n >= 3) $
              2 * pi / fromIntegral n
@@ -207,4 +190,4 @@ makeRegularPrism g n center height radius isClosed = do
       Euler.addFace g [vs ! i, vs ! ii, top]
       Euler.addFace g [bot, vs ! (ii + n), vs ! (i + n)]
 
-  fromJust <$> halfedgeVV g (vs ! 0) (vs ! 1)
+  fromJust <$> halfedgeVV (vs ! 0) (vs ! 1)

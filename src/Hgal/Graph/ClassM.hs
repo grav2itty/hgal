@@ -1,101 +1,241 @@
 module Hgal.Graph.ClassM where
 
-import Control.Lens
 import Control.Monad.State
-import Data.Kind
-
 import qualified Hgal.Graph.Class as Pure
 
 
-type family VertexDescriptor a :: Type
-type family EdgeDescriptor a :: Type
-type family HalfedgeDescriptor a :: Type
+class Element m a where
+  isBorder :: a -> m Bool
+  isValid :: a -> m Bool
 
-type Vertex a = VertexDescriptor a
-type Edge a = EdgeDescriptor a
-type Halfedge a = HalfedgeDescriptor a
+  default isBorder :: Pure.Element g a
+                   => MonadState g m
+                   => a -> m Bool
+  isBorder a = gets (`Pure.isBorder` a)
 
-class Monad m => HalfedgeGraph m g | g -> m where
-  edge :: g -> Halfedge g -> m (Edge g)
-  halfedgeE :: g -> Edge g -> m (Halfedge g)
-  halfedgeV :: g -> Vertex g -> m (Halfedge g)
-  halfedgeVV :: g -> Vertex g -> Vertex g -> m (Maybe (Halfedge g))
-  opposite :: g -> Halfedge g -> m (Halfedge g)
-  source :: g -> Halfedge g -> m (Vertex g)
-  target :: g -> Halfedge g -> m (Vertex g)
-  next :: g -> Halfedge g -> m (Halfedge g)
-  prev :: g -> Halfedge g -> m (Halfedge g)
-
-  isBorderH :: g -> Halfedge g -> m Bool
-  isBorderV :: g -> Vertex g -> m Bool
-  nullHalfedge :: g -> m (Halfedge g)
-  vertices :: g -> m [Vertex g]
-  halfedges :: g -> m [Halfedge g]
-  edges :: g -> m [Edge g]
-
-  showM :: g -> m String
-
---   default edge :: HalfedgeGraphS m g => g -> Halfedge g -> m (Edge g)
---   edge _ h = gets (`Pure.edge` h)
-
-class (Monad m, HalfedgeGraph m g) => MutableHalfedgeGraph m g | g -> m where
-  addVertex :: g -> m (Vertex g)
-  removeVertex :: g -> Vertex g -> m ()
-  addEdge :: g -> m (Edge g)
-  removeEdge :: g -> Edge g -> m ()
-  setTarget :: g -> Halfedge g -> Vertex g -> m ()
-  setNext :: g -> Halfedge g -> Halfedge g -> m ()
-  setHalfedgeV :: g -> Vertex g -> Halfedge g -> m ()
+  default isValid :: Pure.Element g a
+                  => MonadState g m
+                  => a -> m Bool
+  isValid a = gets (`Pure.isValid` a)
 
 
-type family FaceDescriptor a :: Type
+class Element m a => RemovableElement m a where
+  remove :: a -> m ()
 
-type Face a = FaceDescriptor a
+  default remove :: Pure.RemovableElement g a
+                 => MonadState g m
+                 => a -> m ()
+  remove a = modify (`Pure.remove` a)
 
-class (Monad m, HalfedgeGraph m g) => FaceGraph m g | g -> m where
-  face :: g -> Halfedge g -> m (Face g)
-  halfedgeF :: g -> Face g -> m (Halfedge g)
 
-  nullFace :: g -> m (Face g)
-  faces :: g -> m [Face g]
+class GetHalfedge m a h | a -> h where
+  halfedge :: a -> m h
 
-class (Monad m, FaceGraph m g) => MutableFaceGraph m g | g -> m where
-  addFace :: g -> m (Face g)
-  removeFace :: g -> Face g -> m ()
-  setFace :: g -> Halfedge g -> Face g -> m ()
-  setHalfedgeF :: g -> Face g -> Halfedge g -> m ()
+  default halfedge :: Pure.GetHalfedge g a h
+                   => MonadState g m
+                   => a -> m h
+  halfedge a = gets (`Pure.halfedge` a)
+
+
+class SetHalfedge m a h | a -> h where
+  setHalfedge :: a -> h -> m ()
+
+  default setHalfedge :: Pure.SetHalfedge g a h
+                      => MonadState g m
+                      => a -> h -> m ()
+  setHalfedge a h = modify (\s -> Pure.setHalfedge s a h)
+
+
+class GetFace m a f | a -> f where
+  face :: a -> m f
+
+  default face :: Pure.GetFace g a f
+               => MonadState g m
+               => a -> m f
+  face a = gets (`Pure.face` a)
+
+
+class SetFace m a f | a -> f where
+  setFace :: a -> f -> m ()
+
+  default setFace :: Pure.SetFace g a f
+                  => MonadState g m
+                  => a -> f -> m ()
+  setFace a f = modify (\s -> Pure.setFace s a f)
+
+
+class HalfedgeC m v h e | h -> v, h -> e where
+  edge :: h -> m e
+  opposite :: h -> m h
+  source :: h -> m v
+  target :: h -> m v
+  next :: h -> m h
+  prev :: h -> m h
+
+  halfedgeVV :: v -> v -> m (Maybe h)
+
+  default edge :: Pure.HalfedgeC g v h e
+               => MonadState g m
+               => h -> m e
+  edge h = gets (`Pure.edge` h)
+
+  default opposite :: Pure.HalfedgeC g v h e
+                   => MonadState g m
+                   => h -> m h
+  opposite h = gets (`Pure.opposite` h)
+
+  default source :: Pure.HalfedgeC g v h e
+                 => MonadState g m
+                 => h -> m v
+  source h = gets (`Pure.source` h)
+
+  default target :: Pure.HalfedgeC g v h e
+                 => MonadState g m
+                 => h -> m v
+  target h = gets (`Pure.target` h)
+
+  default next :: Pure.HalfedgeC g v h e
+               => MonadState g m
+               => h -> m h
+  next h = gets (`Pure.next` h)
+
+  default prev :: Pure.HalfedgeC g v h e
+               => MonadState g m
+               => h -> m h
+  prev h = gets (`Pure.prev` h)
+
+  default halfedgeVV :: Pure.HalfedgeC g v h e
+                     => MonadState g m
+                     => v -> v -> m (Maybe h)
+  halfedgeVV v1 v2 = gets (\s -> Pure.halfedgeVV s v1 v2)
+
+
+class MutableHalfedgeC m v h | h -> v where
+  setTarget :: h -> v -> m ()
+  setNext :: h -> h -> m ()
+
+  default setTarget :: Pure.MutableHalfedgeC g v h
+                    => MonadState g m
+                    => h -> v -> m ()
+  setTarget h v = modify (\s -> Pure.setTarget s h v)
+
+  default setNext :: Pure.MutableHalfedgeC g v h
+                  => MonadState g m
+                  => h -> h -> m ()
+  setNext h1 h2 = modify (\s -> Pure.setNext s h1 h2)
+
+
+-- either Monad or Elements (v, h, e, f) must hold or reference Graph
+-- but since Monad is not required to do so (ST s)
+-- functions that do not take any Element must take Graph
 
 class
-  ( MonadState g m,
-    HalfedgeGraph m g,
-    Pure.HalfedgeGraph g,
-    Pure.Vertex g ~ Vertex g,
-    Pure.Halfedge g ~ Halfedge g,
-    Pure.Edge g ~ Edge g
-  ) => HalfedgeGraphS m g where
+  ( Monad m,
+    Element m v,
+    Element m h,
+    Element m e,
+    GetHalfedge m v h,
+    GetHalfedge m e h,
+    HalfedgeC m v h e
+  ) => HalfedgeGraph m g v h e | m -> g, g -> h, g -> v, g -> e where
+
+  vertices :: g -> m [v]
+  halfedges :: g -> m [h]
+  edges :: g -> m [e]
+
+  nullVertex :: g -> m v
+  nullHalfedge :: g -> m h
+  nullEdge :: g -> m e
+
+  default vertices :: Pure.HalfedgeGraph g v h e
+                   => MonadState g m
+                   => g -> m [v]
+  vertices _ = gets Pure.vertices
+
+  default halfedges :: Pure.HalfedgeGraph g v h e
+                    => MonadState g m
+                    => g -> m [h]
+  halfedges _ = gets Pure.halfedges
+
+  default edges :: Pure.HalfedgeGraph g v h e
+                => MonadState g m
+                => g -> m [e]
+  edges _ = gets Pure.edges
+
+  default nullVertex :: Pure.HalfedgeGraph g v h e
+                     => MonadState g m
+                     => g -> m v
+  nullVertex _ = gets Pure.nullVertex
+
+  default nullHalfedge :: Pure.HalfedgeGraph g v h e
+                       => MonadState g m
+                       => g -> m h
+  nullHalfedge _ = gets Pure.nullHalfedge
+
+  default nullEdge :: Pure.HalfedgeGraph g v h e
+                   => MonadState g m
+                   => g -> m e
+  nullEdge _ = gets Pure.nullEdge
+
 
 class
-  ( HalfedgeGraphS m g,
-    MutableHalfedgeGraph m g,
-    Pure.MutableHalfedgeGraph g
-  ) => MutableHalfedgeGraphS m g where
+  ( HalfedgeGraph m g v h e,
+    RemovableElement m v,
+    RemovableElement m e,
+    SetHalfedge m v h,
+    MutableHalfedgeC m v h
+  ) => MutableHalfedgeGraph m g v h e | m -> g, g -> h, g -> v, g -> e where
+
+  addVertex :: g -> m v
+  addEdge :: g -> m e
+
+  default addVertex :: Pure.MutableHalfedgeGraph g v h e
+                    => MonadState g m
+                    => g -> m v
+  addVertex _ = state Pure.addVertex
+
+  default addEdge :: Pure.MutableHalfedgeGraph g v h e
+                  => MonadState g m
+                  => g -> m e
+  addEdge _ = state Pure.addEdge
+
 
 class
-  ( HalfedgeGraphS m g,
-    FaceGraph m g,
-    Pure.FaceGraph g,
-    Pure.Face g ~ Face g
-  ) => FaceGraphS m g where
+  ( HalfedgeGraph m g v h e,
+    Element m f,
+    GetHalfedge m f h,
+    GetFace m h f
+  ) => FaceGraph m g v h e f | m -> g, g -> v, g -> h, g -> e, g -> f where
+
+  faces :: g -> m [f]
+
+  nullFace :: g -> m f
+
+  default faces :: Pure.FaceGraph g v h e f
+                => MonadState g m
+                => g -> m [f]
+  faces _ = gets Pure.faces
+
+  default nullFace :: Pure.FaceGraph g v h e f
+                   => MonadState g m
+                   => g -> m f
+  nullFace _ = gets Pure.nullFace
+
 
 class
-  ( FaceGraphS m g,
-    MutableFaceGraph m g,
-    Pure.MutableFaceGraph g
-  ) => MutableFaceGraphS m g where
+  ( FaceGraph m g v h e f,
+    RemovableElement m f,
+    SetHalfedge m f h,
+    SetFace m h f
+  ) => MutableFaceGraph m g v h e f | m -> g, g -> v, g -> h, g -> e, g -> f where
 
-type family PointDescriptor a :: Type
-type Point a = PointDescriptor a
+  addFace :: g -> m f
 
-class PointGraph g where
-  point :: g -> Vertex g -> Point g
+  default addFace :: Pure.MutableFaceGraph g v h e f
+                  => MonadState g m
+                  => g -> m f
+  addFace _ = state Pure.addFace
 
+
+class PointGraph g v p | g -> v, g -> p where
+  point :: g -> v -> p

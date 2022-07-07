@@ -1,59 +1,83 @@
 module Hgal.Graph.Class where
 
-import Control.Lens (Lens')
-import Data.Kind
+class Element g a where
+  isBorder :: g -> a -> Bool
+  isValid :: g -> a -> Bool
+
+class Element g a => RemovableElement g a where
+  remove :: g -> a -> g
+
+class GetHalfedge g a h | a -> h where
+  halfedge :: g -> a -> h
+
+class SetHalfedge g a h | a -> h where
+  setHalfedge :: g -> a -> h -> g
+
+class GetFace g a f | a -> f where
+  face :: g -> a -> f
+
+class SetFace g a f | a -> f where
+  setFace :: g -> a -> f -> g
+
+class HalfedgeC g v h e | h -> v, h -> e where
+  edge :: g -> h -> e
+  opposite :: g -> h -> h
+  source :: g -> h -> v
+  target :: g -> h -> v
+  next :: g -> h -> h
+  prev :: g -> h -> h
+
+  halfedgeVV :: g -> v -> v -> Maybe h
+
+class MutableHalfedgeC g v h | h -> v where
+  setTarget :: g -> h -> v -> g
+  setNext :: g -> h -> h -> g
 
 
-type family VertexDescriptor a :: Type
-type family EdgeDescriptor a :: Type
-type family HalfedgeDescriptor a :: Type
+class
+  ( Element g v,
+    Element g h,
+    Element g e,
+    GetHalfedge g v h,
+    GetHalfedge g e h,
+    HalfedgeC g v h e
+  ) => HalfedgeGraph g v h e | g -> h, g -> v, g -> e where
 
-type Vertex a = VertexDescriptor a
-type Edge a = EdgeDescriptor a
-type Halfedge a = HalfedgeDescriptor a
+  vertices :: g -> [v]
+  halfedges :: g -> [h]
+  edges :: g -> [e]
 
-class HalfedgeGraph g where
-  edge :: g -> Halfedge g -> Edge g
-  halfedgeE :: g -> Edge g -> Halfedge g
-  halfedgeV :: g -> Vertex g -> Halfedge g
-  halfedgeVV :: g -> Vertex g -> Vertex g -> Maybe (Halfedge g)
-  opposite :: g -> Halfedge g -> Halfedge g
-  source :: g -> Halfedge g -> Vertex g
-  target :: g -> Halfedge g -> Vertex g
-  next :: g -> Halfedge g -> Halfedge g
-  prev :: g -> Halfedge g -> Halfedge g
+  nullVertex :: g -> v
+  nullHalfedge :: g -> h
+  nullEdge :: g -> e
 
-  isBorderH :: g -> Halfedge g -> Bool
-  isBorderV :: g -> Vertex g -> Bool
-  nullHalfedge :: g -> Halfedge g
-  vertices :: g -> [Vertex g]
-  halfedges :: g -> [Halfedge g]
-  edges :: g -> [Edge g]
+class
+  ( HalfedgeGraph g v h e,
+    RemovableElement g v,
+    RemovableElement g e,
+    SetHalfedge g v h,
+    MutableHalfedgeC g v h
+  ) => MutableHalfedgeGraph g v h e | g -> h, g -> v, g -> e where
 
+  addVertex :: g -> (v, g)
+  addEdge :: g -> (e, g)
 
-class HalfedgeGraph g => MutableHalfedgeGraph g where
-  addVertex :: g -> (Vertex g, g)
-  removeVertex :: g -> Vertex g -> g
-  addEdge :: g -> (Edge g, g)
-  removeEdge :: g -> Edge g -> g
-  setTarget :: g -> Halfedge g -> Vertex g -> g
-  setNext :: g -> Halfedge g -> Halfedge g -> g
-  setHalfedgeV :: g -> Vertex g -> Halfedge g -> g
+class
+  ( HalfedgeGraph g v h e,
+    Element g f,
+    GetHalfedge g f h,
+    GetFace g h f
+  ) => FaceGraph g v h e f | g -> v, g -> h, g -> e, g -> f where
 
+  faces :: g -> [f]
 
-type family FaceDescriptor a :: Type
+  nullFace :: g -> f
 
-type Face a = FaceDescriptor a
+class
+  ( FaceGraph g v h e f,
+    RemovableElement g f,
+    SetHalfedge g f h,
+    SetFace g h f
+  ) => MutableFaceGraph g v h e f | g -> v, g -> h, g -> e, g -> f where
 
-class HalfedgeGraph g => FaceGraph g where
-  face :: g -> Halfedge g -> Face g
-  halfedgeF :: g -> Face g -> Halfedge g
-
-  nullFace :: g -> Face g
-  faces :: g -> [Face g]
-
-class FaceGraph g => MutableFaceGraph g where
-  addFace :: g -> (Face g, g)
-  removeFace :: g -> Face g -> g
-  setFace :: g -> Halfedge g -> Face g -> g
-  setHalfedgeF :: g -> Face g -> Halfedge g -> g
+  addFace :: g -> (f, g)

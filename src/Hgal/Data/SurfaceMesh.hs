@@ -28,11 +28,9 @@ import qualified Hgal.Data.PropertyM as M
 import Debug.Trace
 import qualified Hgal.Graph.EulerOperations as Euler
 import qualified Hgal.Graph.EulerOperationsM as EulerM
-import Hgal.Graph.Generators
 import qualified Hgal.Graph.GeneratorsM as GM
 import Linear
 import Data.Map (Map)
-import qualified Data.Map as Map
 
 
 data family Connectivity a :: *
@@ -553,112 +551,111 @@ fH g (FaceConnectivity v) = FaceConnectivity <$> g v
 -------------------------------------------------------------------------------
 -- Graph isntances
 
-type instance Graph.VertexDescriptor (SurfaceMesh v d) = Vertex
-type instance Graph.HalfedgeDescriptor (SurfaceMesh v d) = Halfedge
-type instance Graph.EdgeDescriptor (SurfaceMesh v d) = Edge
 
-instance Graph.HalfedgeGraph (SurfaceMesh v d) where
+instance Graph.Element (SurfaceMesh v d) Vertex where
+  isBorder = isBorder
+  isValid g = fromRight False . isValid g
+instance Graph.Element (SurfaceMesh v d) Halfedge where
+  isBorder = isBorder
+  isValid g = fromRight False . isValid g
+instance Graph.Element (SurfaceMesh v d) Edge where
+  isBorder = isBorder
+  isValid g = fromRight False . isValid g
+instance Graph.Element (SurfaceMesh v d) Face where
+  isBorder = isBorder
+  isValid g = fromRight False . isValid g
+
+instance Graph.RemovableElement (SurfaceMesh v d) Vertex where
+  remove = removeVertex
+instance Graph.RemovableElement (SurfaceMesh v d) Edge where
+  remove = removeEdge
+instance Graph.RemovableElement (SurfaceMesh v d) Face where
+  remove = removeFace
+
+instance Graph.GetHalfedge (SurfaceMesh v d) Vertex Halfedge where
+  halfedge = halfedge
+instance Graph.SetHalfedge (SurfaceMesh v d) Vertex Halfedge where
+  setHalfedge = setHalfedge
+instance Graph.GetHalfedge (SurfaceMesh v d) Edge Halfedge where
+  halfedge = halfedge
+instance Graph.SetHalfedge (SurfaceMesh v d) Edge Halfedge where
+  setHalfedge = setHalfedge
+instance Graph.GetHalfedge (SurfaceMesh v d) Face Halfedge where
+  halfedge = halfedge
+instance Graph.SetHalfedge (SurfaceMesh v d) Face Halfedge where
+  setHalfedge = setHalfedge
+instance Graph.GetFace (SurfaceMesh v d) Halfedge Face where
+  face = face
+instance Graph.SetFace (SurfaceMesh v d) Halfedge Face where
+  setFace = setFace
+
+instance Graph.HalfedgeC (SurfaceMesh v d) Vertex Halfedge Edge where
   edge = edge
-  halfedgeV = halfedge
-  halfedgeE = halfedge
-  halfedgeVV = halfedgeVV
   opposite _ = opposite
+
   source = source
   target = target
+
   next = next
   prev = prev
 
-  isBorderH = isBorder
-  isBorderV = isBorder
-  nullHalfedge _ = nullE
+  halfedgeVV = halfedgeVV
+
+instance Graph.MutableHalfedgeC (SurfaceMesh v d) Vertex Halfedge where
+  setTarget = setTarget
+  setNext = setNext
+
+instance Graph.HalfedgeGraph (SurfaceMesh v d) Vertex Halfedge Edge where
   vertices = vertices
   halfedges = halfedges
   edges = edges
 
-instance Graph.MutableHalfedgeGraph (SurfaceMesh v d) where
+  nullVertex _ = nullE
+  nullHalfedge _ = nullE
+  nullEdge _ = nullE
+
+instance Graph.MutableHalfedgeGraph  (SurfaceMesh v d) Vertex Halfedge Edge where
   addVertex = addVertex
-  removeVertex = removeVertex
   addEdge = addEdge
-  removeEdge = removeEdge
-  setTarget = setTarget
-  setNext = setNext
-  setHalfedgeV = setHalfedge
 
-type instance Graph.FaceDescriptor (SurfaceMesh v d) = Face
-
-instance Graph.FaceGraph (SurfaceMesh v d) where
-  face = face
-  halfedgeF = halfedge
-
-  nullFace _ = nullE
+instance Graph.FaceGraph (SurfaceMesh v d) Vertex Halfedge Edge Face where
   faces = faces
 
-instance Graph.MutableFaceGraph (SurfaceMesh v d) where
-  addFace = addFace
-  removeFace = removeFace
-  setFace = setFace
-  setHalfedgeF = setHalfedge
+  nullFace _ = nullE
 
-type instance GraphM.VertexDescriptor (SurfaceMesh v d) = Vertex
-type instance GraphM.HalfedgeDescriptor (SurfaceMesh v d) = Halfedge
-type instance GraphM.EdgeDescriptor (SurfaceMesh v d) = Edge
+instance Graph.MutableFaceGraph (SurfaceMesh v d) Vertex Halfedge Edge Face where
+  addFace = addFace
+
 
 type St v d = State (SurfaceMesh v d)
 
--- instance GraphM.HalfedgeGraphS (St v h e f) (SurfaceMesh v d)
+instance GraphM.Element (St v d) Vertex
+instance GraphM.Element (St v d) Halfedge
+instance GraphM.Element (St v d) Edge
+instance GraphM.Element (St v d) Face
+instance GraphM.RemovableElement (St v d) Vertex
+instance GraphM.RemovableElement (St v d) Edge
+instance GraphM.RemovableElement (St v d) Face
 
-instance GraphM.HalfedgeGraph (St v d) (SurfaceMesh v d) where
-  edge _ h = gets (`edge` h)
-  halfedgeV _ h = gets (`halfedge` h)
-  halfedgeE _ h = gets (`halfedge` h)
-  halfedgeVV _ h v = gets (\s -> halfedgeVV s h v)
-  opposite _ h = return (opposite h)
-  source _ h = gets (`source` h)
-  target _ h = gets (`target` h)
-  next _ h = gets (`next` h)
-  prev _ h = gets (`prev` h)
+instance GraphM.GetHalfedge (St v d) Vertex Halfedge
+instance GraphM.SetHalfedge (St v d) Vertex Halfedge
+instance GraphM.GetHalfedge (St v d) Edge Halfedge
+instance GraphM.SetHalfedge (St v d) Edge Halfedge
+instance GraphM.GetHalfedge (St v d) Face Halfedge
+instance GraphM.SetHalfedge (St v d) Face Halfedge
+instance GraphM.GetFace (St v d) Halfedge Face
+instance GraphM.SetFace (St v d) Halfedge Face
 
-  isBorderH _ h = gets (`isBorder` h)
-  isBorderV _ h = gets (`isBorder` h)
-  nullHalfedge _ = return nullE
-  vertices _ =  gets vertices
-  halfedges _ = gets halfedges
-  edges _ = gets edges
+instance GraphM.HalfedgeC (St v d) Vertex Halfedge Edge
+instance GraphM.MutableHalfedgeC (St v d) Vertex Halfedge
 
-  showM _ = gets show
+instance GraphM.HalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge where
+instance GraphM.MutableHalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge where
+instance GraphM.FaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face where
+instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face where
 
-instance GraphM.MutableHalfedgeGraph (St v d) (SurfaceMesh v d) where
-  addVertex _ = state addVertex
-  removeVertex _ v = modify (`removeVertex` v)
-  addEdge _ = state addEdge
-  removeEdge _ v = modify (`removeEdge` v)
-  setTarget _ h v = modify (\s -> setTarget s h v)
-  setNext _ h1 h2 = modify (\s -> setNext s h1 h2)
-  setHalfedgeV _ v h = modify (\s -> setHalfedge s v h)
 
-type instance GraphM.FaceDescriptor (SurfaceMesh v d) = Face
-
-instance GraphM.FaceGraph (St v d) (SurfaceMesh v d) where
-  face _ h = gets (`face` h)
-  halfedgeF _ h = gets (`halfedge` h)
-
-  nullFace _ = return nullE
-  faces _ = gets faces
-
-instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) where
-  addFace _ = state addFace
-  removeFace _ f = modify (`removeFace` f)
-  setFace _ h f = modify (\s -> setFace s h f)
-  setHalfedgeF _ f h = modify (\s -> setHalfedge s f h)
-
-instance GraphM.HalfedgeGraphS (St v d) (SurfaceMesh v d)
-instance GraphM.MutableHalfedgeGraphS (St v d) (SurfaceMesh v d)
-instance GraphM.FaceGraphS (St v d) (SurfaceMesh v d)
-instance GraphM.MutableFaceGraphS (St v d) (SurfaceMesh v d)
-
-type instance GraphM.PointDescriptor (SurfaceMesh v d) = Point
-
-instance GraphM.PointGraph (SurfaceMesh v d) where
+instance GraphM.PointGraph (SurfaceMesh v d) Vertex Point where
   point _ v = Point v
 
 -------------------------------------------------------------------------------
