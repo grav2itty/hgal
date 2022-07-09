@@ -2,7 +2,8 @@ module Hgal.Graph.Class where
 
 class Element g a where
   isBorder :: g -> a -> Bool
-  isValid :: g -> a -> Bool
+  isValid :: g -> a -> Either String Bool
+  degree :: g -> a -> Int
 
 class Element g a => RemovableElement g a where
   remove :: g -> a -> g

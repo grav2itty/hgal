@@ -6,7 +6,8 @@ import qualified Hgal.Graph.Class as Pure
 
 class Element m a where
   isBorder :: a -> m Bool
-  isValid :: a -> m Bool
+  isValid :: a -> m (Either String Bool)
+  degree :: a -> m Int
 
   default isBorder :: Pure.Element g a
                    => MonadState g m
@@ -15,8 +16,13 @@ class Element m a where
 
   default isValid :: Pure.Element g a
                   => MonadState g m
-                  => a -> m Bool
+                  => a -> m (Either String Bool)
   isValid a = gets (`Pure.isValid` a)
+
+  default degree :: Pure.Element g a
+                 => MonadState g m
+                 => a -> m Int
+  degree a = gets (`Pure.degree` a)
 
 
 class Element m a => RemovableElement m a where

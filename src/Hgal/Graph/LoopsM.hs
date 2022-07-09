@@ -133,8 +133,9 @@ loop :: Monad m
 loop m g f h = worker h
   where
     worker hx = do
+      f g hx
       n <- m hx
-      if n /= h then worker n else f g hx
+      when (n /= h) (worker n)
 
 loopC :: Monad m
       => Eq h

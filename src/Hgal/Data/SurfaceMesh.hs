@@ -36,11 +36,8 @@ import Data.Map (Map)
 data family Connectivity a :: *
 
 class Element a where
-  data Size a :: *
-
   name :: a -> String
 
-  numElements :: SurfaceMesh v d -> Size a
   new :: SurfaceMesh v d -> a
 
   nullE :: a
@@ -65,9 +62,9 @@ class Element a where
   isIsolated sm = (== nullE) . halfedge sm
 
   isRemoved :: SurfaceMesh v d -> a -> Bool
-  isRemoved _ _ = False
 
   degree :: SurfaceMesh v d -> a -> Int
+  degree sm = degree sm . vertex sm . halfedge sm
 
   vertex :: SurfaceMesh v d -> a -> Vertex
   vertex sm = vertex sm . halfedge sm
@@ -75,7 +72,6 @@ class Element a where
   halfedge :: SurfaceMesh v d -> a -> Halfedge
 
   setHalfedge :: SurfaceMesh v d -> a -> Halfedge -> SurfaceMesh v d
-  setHalfedge sm _ _ = sm
 
   edge :: SurfaceMesh v d -> a -> Edge
   edge sm = (\(Halfedge i) -> Edge i) . halfedge sm
@@ -93,8 +89,10 @@ newtype Halfedge = Halfedge Int
     deriving (Bounded, Enum, Eq, Ord)
     deriving newtype (Bits, Integral, Num, Real)
 newtype Edge = Edge Int
-    deriving (Bounded, Enum, Eq, Ord)
+    deriving (Bounded, Enum, Ord)
     deriving newtype (Bits, Integral, Num, Real)
+instance Eq Edge where
+  (==) a b = div a 2 == div b 2
 newtype Face = Face Int
     deriving (Bounded, Enum, Eq, Ord)
     deriving newtype (Bits, Integral, Num, Real)
@@ -136,14 +134,12 @@ instance Element Vertex where
 
   name _ = "Vertex"
 
-  numElements = VertexSize . length . _vconn
-  new = Vertex . length . _vconn
+  new = Vertex . numVertices
 
   conn (Vertex i) = vconn.singular (ix i)
   propertyOf e = props.property e
 
-  hasValidIndex sm (Vertex i) = i < n
-    where (VertexSize n) = numElements sm
+  hasValidIndex sm (Vertex i) = i < numVertices sm
   hasValidConnectivity sm v
     | not (hasValidIndex sm h) || isRemoved sm h = Left $ conError sm v "" h
     | otherwise = Right True
@@ -167,23 +163,16 @@ instance Element Vertex where
   next sm = vertex sm . next sm . halfedge sm
   prev sm = vertex sm . prev sm . halfedge sm
 
-  newtype Size Vertex = VertexSize Int
-    deriving (Bounded, Enum, Eq, Ord, Show)
-    deriving newtype (Bits, Integral, Num, Real)
-
 instance Element Halfedge where
 
   name _ = "Halfedge"
 
-  numElements = HalfedgeSize . length . _hconn
-  new = Halfedge . length . _hconn
+  new = Halfedge . numHalfedges
 
   conn (Halfedge i) = hconn.singular (ix i)
   propertyOf e = props.property e
 
-  hasValidIndex sm (Halfedge i) =
-    let (HalfedgeSize n) = numElements sm
-    in i < n
+  hasValidIndex sm (Halfedge i) = i < numHalfedges sm
 
   hasValidConnectivity sm h = collectErrors [faceC, vertexC, nextC, prevC]
     where
@@ -207,7 +196,7 @@ instance Element Halfedge where
 
   isBorder sm = (== nullE) . face sm
 
-  isRemoved sm (Halfedge i) = fromMaybe False $ IntMap.lookup i (_eremoved sm)
+  isRemoved sm = isRemoved sm . edge sm
 
   halfedge _ h = h
   vertex sm h = view (conn h.hV) sm
@@ -215,21 +204,15 @@ instance Element Halfedge where
   next sm h = view (conn h.hN) sm
   prev sm h = view (conn h.hP) sm
 
-  newtype Size Halfedge = HalfedgeSize Int
-    deriving (Bounded, Enum, Eq, Ord, Show)
-    deriving newtype (Bits, Integral, Num, Real)
-
 instance Element Edge where
 
   name _ = "Edge"
 
-  numElements = EdgeSize . (`div` 2) . length . _hconn
-  new = Edge . length . _hconn
+  new = Edge . numHalfedges
 
   propertyOf e = props.property (div e 2)
 
-  hasValidIndex sm (Edge i) = i < n
-    where (EdgeSize n) = numElements sm
+  hasValidIndex sm (Edge i) = i < numEdges sm
 
   isValid sm e
     | hasValidIndex sm e = collectErrors [isValid sm h, isValid sm (opposite h)]
@@ -239,28 +222,22 @@ instance Element Edge where
   isBorder sm e = isBorder sm h || isBorder sm (opposite h)
     where h = halfedge sm e
 
-  isRemoved sm (Edge i) = fromMaybe False $ IntMap.lookup i (_eremoved sm)
+  isRemoved sm (Edge i) = fromMaybe False $ IntMap.lookup (div i 2) (_eremoved sm)
 
   halfedge _ (Edge i) = Halfedge i
   next sm = edge sm . next sm . halfedge sm
   prev sm = edge sm . prev sm . halfedge sm
 
-  newtype Size Edge = EdgeSize Int
-    deriving (Bounded, Enum, Eq, Ord, Show)
-    deriving newtype (Bits, Integral, Num, Real)
-
 instance Element Face where
 
   name _ = "Face"
 
-  numElements = FaceSize . length . _fconn
-  new = Face . length . _fconn
+  new = Face . numFaces
 
   conn (Face i) = fconn.singular (ix i)
   propertyOf e = props.property e
 
-  hasValidIndex sm (Face i) = i < n
-    where (FaceSize n) = numElements sm
+  hasValidIndex sm (Face i) = i < numFaces sm
 
   hasValidConnectivity sm f
     | not (hasValidIndex sm f) || isRemoved sm f = Left $ conError sm f "" h
@@ -283,10 +260,6 @@ instance Element Face where
   setHalfedge sm f h = set (conn f.fH) h sm
   face _ f = f
 
-  newtype Size Face = FaceSize Int
-    deriving (Bounded, Enum, Eq, Ord, Show)
-    deriving newtype (Bits, Integral, Num, Real)
-
 
 empty :: d -> SurfaceMesh v d
 empty = SurfaceMesh
@@ -298,21 +271,33 @@ empty = SurfaceMesh
 -------------------------------------------------------------------------------
 -- Elements
 
+numVertices :: SurfaceMesh v d -> Int
+numVertices = length . _vconn
+
+numHalfedges :: SurfaceMesh v d -> Int
+numHalfedges = length . _hconn
+
+numEdges :: SurfaceMesh v d -> Int
+numEdges = (`div` 2) . length . _hconn
+
+numFaces :: SurfaceMesh v d -> Int
+numFaces = length . _fconn
+
 vertices :: SurfaceMesh v d -> [Vertex]
 vertices sm = Prelude.filter (not . isRemoved sm) $
-              Vertex <$> [0..fromIntegral (numElements sm :: Size Vertex) - 1]
+              Vertex <$> [0..numVertices sm - 1]
 
 halfedges :: SurfaceMesh v d -> [Halfedge]
 halfedges sm = Prelude.filter (not . isRemoved sm) $
-               Halfedge <$> [0..fromIntegral (numElements sm :: Size Halfedge) - 1]
+               Halfedge <$> [0..numHalfedges sm - 1]
 
 edges :: SurfaceMesh v d -> [Edge]
-edges sm = Prelude.filter (not . isRemoved sm) $
-           Edge . (* 2) <$> [0..fromIntegral (numElements sm :: Size Edge) - 1]
+edges sm = fmap (`div` 2) <$> Prelude.filter (not . isRemoved sm) $
+           Edge . (*2) <$> [0..numEdges sm - 1]
 
 faces :: SurfaceMesh v d -> [Face]
 faces sm = Prelude.filter (not . isRemoved sm) $
-           Face <$> [0..fromIntegral (numElements sm :: Size Face) - 1]
+           Face <$> [0..numFaces sm - 1]
 
 -------------------------------------------------------------------------------
 -- Adding elements
@@ -350,7 +335,7 @@ removeVertex :: SurfaceMesh v d -> Vertex -> SurfaceMesh v d
 removeVertex sm (Vertex i) = vremoved.at i ?~ True $ sm
 
 removeEdge :: SurfaceMesh v d -> Edge -> SurfaceMesh v d
-removeEdge sm (Edge i) = eremoved.at i ?~ True $ sm
+removeEdge sm (Edge i) = eremoved.at (div i 2) ?~ True $ sm
 
 removeFace :: SurfaceMesh v d -> Face -> SurfaceMesh v d
 removeFace sm (Face i) = fremoved.at i ?~ True $ sm
@@ -520,7 +505,7 @@ instance Show Halfedge where
 instance Show Edge where
   show ii@(Edge i)
     | ii == nullE = "N"
-    | otherwise = show . (`div` 2) $ i
+    | otherwise = show i
 
 instance Show Face where
   show ii@(Face i)
@@ -554,16 +539,20 @@ fH g (FaceConnectivity v) = FaceConnectivity <$> g v
 
 instance Graph.Element (SurfaceMesh v d) Vertex where
   isBorder = isBorder
-  isValid g = fromRight False . isValid g
+  isValid g = isValid g
+  degree = degree
 instance Graph.Element (SurfaceMesh v d) Halfedge where
   isBorder = isBorder
-  isValid g = fromRight False . isValid g
+  isValid g = isValid g
+  degree = degree
 instance Graph.Element (SurfaceMesh v d) Edge where
   isBorder = isBorder
-  isValid g = fromRight False . isValid g
+  isValid g = isValid g
+  degree = degree
 instance Graph.Element (SurfaceMesh v d) Face where
   isBorder = isBorder
-  isValid g = fromRight False . isValid g
+  isValid g = isValid g
+  degree = degree
 
 instance Graph.RemovableElement (SurfaceMesh v d) Vertex where
   remove = removeVertex
@@ -702,4 +691,3 @@ foo2 =
             -- propertyOf (Edge 0) ?= Map.fromList [("foo", "bar")]
             -- (propertyOf (Edge 0)._Just.at "foo") ?= "alice"
   in execState f sm
-
