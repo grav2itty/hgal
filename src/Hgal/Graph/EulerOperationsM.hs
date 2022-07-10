@@ -150,6 +150,40 @@ addFace g vs = do
         forM_ vertices (adjustIncomingHalfedge g)
         return f
 
+removeFace :: MutableHalfedgeGraph m g v h e
+           => MutableFaceGraph m g v h e f
+           => Eq h
+           => g -> h -> m ()
+removeFace g h = do
+  isB <- isBorder h
+  f <- assert (not isB) (face h)
+  let
+    worker hx = do
+      setBorder g hx
+      nh <- next hx
+      hBorder <- isBorder =<< opposite hx
+      nhBorder <- isBorder =<< opposite nh
+      hxo <- opposite hx
+      nhon <- (next <=< opposite) nh
+      if hBorder && nhBorder && (hxo == nhon)
+        then do
+          remove =<< target hx
+          when (hx /= h) (remove =<< edge hx)
+        else do
+          when nhBorder $ do
+            setVertexHalfedge =<< (opposite <=< next <=< opposite) nh
+            removeTip hx
+          when hBorder $ do
+            setVertexHalfedge =<< (opposite <=< next) hx
+            removeTip =<< (prev <=< opposite) hx
+            when (hx /= h) (remove =<< edge hx)
+      when (nh /= h) (worker nh)
+  worker h
+
+  remove f
+  isB' <- isBorder =<< opposite h
+  when isB' (remove =<< edge h)
+
 addEdge :: MutableHalfedgeGraph m g v h e
         => g -> v -> v -> m e
 addEdge g s t = do
@@ -157,6 +191,156 @@ addEdge g s t = do
   (setTarget ?? t) =<< halfedge e
   (setTarget ?? s) =<< (opposite <=< halfedge) e
   return e
+
+splitEdge :: MutableHalfedgeGraph m g v h e
+          => MutableFaceGraph m g v h e f
+          => Eq h
+          => g -> h -> m h
+splitEdge g h = do
+  p <- prev h
+  opposite =<< splitVertex g p =<< opposite h
+
+
+joinLoop :: MutableHalfedgeGraph m g v h e
+         => MutableFaceGraph m g v h e f
+         => (Eq h, Eq f)
+         => g -> h -> h -> m h
+joinLoop g h1 h2 = do
+  isB1 <- isBorder h1
+  isB2 <- isBorder h1
+  f1 <- face h1
+  f2 <- face h2
+  _ <- assert (isB1 || f1 /= f2) $ return ()
+  unless isB1 (remove f1)
+  unless isB2 (remove f2)
+
+  let
+    worker hx gx = do
+      hn <- next hx
+      setFace hx =<< (face <=< opposite) gx
+      (setHalfedge ?? hx) =<< face hx
+      remove =<< (target <=< opposite) gx
+      onon <- (next <=< opposite <=< next <=< opposite) gx
+      gn <- if onon == gx then (opposite <=< next <=< opposite) gx
+        else do
+          setNext hx =<< (next <=< opposite) gx
+          gx' <- (opposite <=< next <=< opposite) gx
+          setTarget gx' =<< target hx
+          let
+            worker2 hx2 = do
+              t <- (next <=< opposite <=< next) hx2
+              if t == gx then return hx2
+                else do
+                  n <- (opposite <=< next) hx2
+                  setTarget n =<< target hx
+                  worker2 n
+          gx'' <- worker2 gx'
+          setNext gx'' hn
+          (opposite <=< next) gx''
+
+      if hn /= h1 then worker hn gn else return gn
+  h2' <- worker h1 h2
+  _ <- assert (h2' == h2) $ return ()
+  let
+    worker3 hx = do
+      n <- next hx
+      remove =<< edge hx
+      when (n /= h2) (worker3 n)
+  worker3 h2
+  return h1
+
+splitLoop :: MutableHalfedgeGraph m g v h e
+          => MutableFaceGraph m g v h e f
+          => (Eq v, Eq h)
+          => g -> h -> h -> h -> m h
+splitLoop g h i j  = do
+  th <- target h
+  ti <- target i
+  tj <- target j
+  toh <- (target <=< opposite) h
+  toi <- (target <=< opposite) i
+  toj <- (target <=< opposite) j
+  _ <- assert (h /= i && h /= j && i /= j) $ return ()
+  _ <- assert (th /= toi && ti /= toj && tj /= toh) $ return ()
+
+  hnew <- copy g h
+  inew <- copy g i
+  jnew <- copy g j
+  closeTip hnew =<< addVertex g
+  closeTip inew =<< addVertex g
+  closeTip jnew =<< addVertex g
+  (insertTip ?? hnew) =<< opposite inew
+  (insertTip ?? inew) =<< opposite jnew
+  (insertTip ?? jnew) =<< opposite hnew
+
+  nh <- next h
+  when (nh /= i) $ do
+    setNext h i
+    setNext hnew nh
+    onh <- opposite nh
+    let
+      worker hx = do
+        t <- next hx
+        if t == i then return hx
+          else do
+            setTarget hx =<< target hnew
+            worker =<< (opposite <=< next) hx
+    nh' <- worker onh
+    setTarget nh' =<< target hnew
+    setNext nh' inew
+
+  ni <- next i
+  when (ni /= j) $ do
+    setNext i j
+    setNext inew ni
+    oni <- opposite ni
+    let
+      worker hx = do
+        t <- next hx
+        if t == j then return hx
+          else do
+            setTarget hx =<< target inew
+            worker =<< (opposite <=< next) hx
+    ni' <- worker oni
+    setTarget ni' =<< target inew
+    setNext ni' jnew
+
+  nj <- next j
+  when (nj /= h) $ do
+    setNext j h
+    setNext jnew nj
+    onj <- opposite nj
+    let
+      worker hx = do
+        t <- next hx
+        if t == h then return hx
+          else do
+            setTarget hx =<< target jnew
+            worker =<< (opposite <=< next) hx
+    nj' <- worker onj
+    setTarget nj' =<< target jnew
+    setNext nj' hnew
+
+  f <- Graph.addFace g
+  setFace h f
+  setFace i f
+  setFace j f
+  (setHalfedge ?? h) =<< face h
+  f2 <- Graph.addFace g
+  (setFace ?? f2) =<< opposite hnew
+  (setFace ?? f2) =<< opposite inew
+  (setFace ?? f2) =<< opposite jnew
+  hf <- (face <=< opposite) hnew
+  setHalfedge hf =<< opposite hnew
+
+  (setHalfedge ?? hnew) =<< face hnew
+  (setHalfedge ?? inew) =<< face inew
+  (setHalfedge ?? jnew) =<< face jnew
+  (setHalfedge ?? hnew) =<< target hnew
+  (setHalfedge ?? inew) =<< target inew
+  (setHalfedge ?? jnew) =<< target jnew
+
+  opposite hnew
 
 splitVertex :: MutableHalfedgeGraph m g v h e
             => MutableFaceGraph m g v h e f
@@ -222,6 +406,19 @@ joinVertex g h = do
   remove v_to_remove
 
   return hprev
+
+makeHole :: MutableHalfedgeGraph m g v h e
+         => MutableFaceGraph m g v h e f
+         => Eq h
+         => g -> h -> m ()
+makeHole g h = do
+  isB <- isBorder h
+  fd <- assert (not isB) (face h)
+  halfedgeAroundFace g (\g' h' -> do
+                           isB' <- isBorder =<< opposite  h'
+                           assert (not isB') $ setBorder g' h'
+                       ) h
+  remove fd
 
 fillHole :: MutableHalfedgeGraph m g v h e
          => MutableFaceGraph m g v h e f
@@ -293,6 +490,67 @@ removeCenterVertex g h = do
   (setHalfedge ?? hret) =<< face hret
 
   return hret
+
+addVertexAndFaceToBorder :: MutableHalfedgeGraph m g v h e
+                         => MutableFaceGraph m g v h e f
+                         => Eq h
+                         => g -> h -> h -> m h
+addVertexAndFaceToBorder g h1 h2 = do
+  v <- addVertex g
+  f <- Graph.addFace g
+  e1 <- Graph.addEdge g
+  e2 <- Graph.addEdge g
+  he1 <- halfedge e1
+  he2 <- halfedge e2
+  ohe1 <- opposite he1
+  ohe2 <- opposite he2
+
+  setNext ohe1 =<< next h1
+  setNext h1 he1
+  setTarget ohe1 =<< target h1
+  setTarget he1 v
+  setNext ohe2 ohe1
+  setTarget ohe2 v
+  setNext he1 he2
+  setTarget he1 v
+  setHalfedge v he1
+  setNext he2 =<< next h2
+  setTarget he2 =<< target h2
+  setNext h2 ohe2
+  setBorder g he1
+  setBorder g he2
+
+  halfedgeAroundFace g (\_ h' -> setFace h' f) ohe1
+  setHalfedge f ohe1
+  return ohe2
+
+addFaceToBorder :: MutableHalfedgeGraph m g v h e
+                => MutableFaceGraph m g v h e f
+                => Eq h
+                => g -> h -> h -> m h
+addFaceToBorder g h1 h2 = do
+  isB1 <- isBorder h1
+  isB2 <- isBorder h2
+  nh1 <- next h1
+  _ <- assert (isB1 && isB2 && h1 /= h2 && nh1 /= h2) (return ())
+  f <- Graph.addFace g
+  e <- Graph.addEdge g
+  newh <- halfedge e
+  newhop <- opposite newh
+
+  setNext newhop =<< next h2
+  setNext h2 newh
+  setNext newh =<< next h1
+  setNext h1 newhop
+  setTarget newh =<< target h1
+  setTarget newhop =<< target h2
+
+  (setHalfedge ?? newhop) =<< target h2
+  setBorder g newhop
+
+  halfedgeAroundFace g (\_ h' -> setFace h' f) newh
+  setHalfedge f newh
+  return newh
 
 joinFace :: MutableHalfedgeGraph m g v h e
          => MutableFaceGraph m g v h e f
