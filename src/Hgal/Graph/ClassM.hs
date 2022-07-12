@@ -1,5 +1,6 @@
 module Hgal.Graph.ClassM where
 
+import Control.Lens(Iso'())
 import Control.Monad.State
 import qualified Hgal.Graph.Class as Pure
 
@@ -244,4 +245,5 @@ class
 
 
 class PointGraph g v p | g -> v, g -> p where
-  point :: g -> v -> p
+  -- point :: g -> v -> p
+  point :: g -> Iso' v p

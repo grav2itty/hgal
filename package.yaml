@@ -22,9 +22,11 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 - containers
+- hOff-parser
 - lens
 - linear
 - mtl
+- parsec
 - transformers
 - vector
 - vector-circular
@@ -58,6 +60,7 @@ library:
     - Hgal.Data.Property
     - Hgal.Data.PropertyM
     - Hgal.Data.SurfaceMesh
+    - Hgal.Data.SurfaceMesh.IO
 
 tests:
   hgal-test:

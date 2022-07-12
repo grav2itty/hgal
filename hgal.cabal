@@ -37,6 +37,7 @@ library
       Hgal.Data.Property
       Hgal.Data.PropertyM
       Hgal.Data.SurfaceMesh
+      Hgal.Data.SurfaceMesh.IO
   other-modules:
       Paths_hgal
   hs-source-dirs:
@@ -54,9 +55,11 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , hOff-parser
     , lens
     , linear
     , mtl
+    , parsec
     , transformers
     , vector
     , vector-circular
@@ -68,6 +71,7 @@ test-suite hgal-test
   other-modules:
       Hgal.Data.SurfaceMeshTest
       Hgal.Graph.EulerOperationsTest
+      Hgal.Graph.Fixtures
       Paths_hgal
   hs-source-dirs:
       test
@@ -87,10 +91,12 @@ test-suite hgal-test
   build-depends:
       base >=4.7 && <5
     , containers
+    , hOff-parser
     , hgal
     , lens
     , linear
     , mtl
+    , parsec
     , tasty
     , tasty-discover >=4.2.4
     , tasty-hspec

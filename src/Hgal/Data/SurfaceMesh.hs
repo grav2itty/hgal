@@ -29,7 +29,7 @@ import Debug.Trace
 import qualified Hgal.Graph.EulerOperations as Euler
 import qualified Hgal.Graph.EulerOperationsM as EulerM
 import qualified Hgal.Graph.GeneratorsM as GM
-import Linear
+import Linear hiding (point)
 import Data.Map (Map)
 
 
@@ -322,8 +322,8 @@ addFace sm =
 newVertex :: SurfaceMesh v d -> v -> (SurfaceMesh v d, Vertex)
 newVertex sm v =
   --that's not exactly right
-  let sm' = vpoint %~ (snoc ?? Just v) $ sm
-  in swap $ addVertex sm'
+  let (n, sm') = addVertex sm
+  in (vpoint %~ (\(vs :|> _) -> vs :|> Just v) $ sm', n)
 
 newFace :: Foldable t => SurfaceMesh v d -> t Vertex -> (SurfaceMesh v d, Face)
 newFace sm vs = swap $ Euler.addFace sm vs
@@ -385,11 +385,13 @@ halfedgeVV sm sour tar =
 -------------------------------------------------------------------------------
 -- Properties
 
-instance Property (SurfaceMesh v d) Point v where
+instance Eq v => Property (SurfaceMesh v d) Point v where
   property (Point (Vertex i)) = vpoint.lens (`Seq.index` i) (flip $ Seq.update i)
   properties sm = V.fromList. toList $ _vpoint sm
 
-instance M.Property (St v d) (SurfaceMesh v d) Point v where
+  find sm v = Point . Vertex <$> Seq.elemIndexL (Just v) (_vpoint sm)
+
+instance Eq v => M.Property (St v d) (SurfaceMesh v d) Point v where
   getProperty _ k = use (property k)
   adjustProperty _ f k = modifying (property k) (fmap f)
   replaceProperty _ k v = assign (property k) (Just v)
@@ -407,7 +409,7 @@ edgeProperties sm = properties (_props sm)
 faceProperties :: Property d Face p => SurfaceMesh v d -> V.Vector (Maybe p)
 faceProperties sm = properties (_props sm)
 
-pointProperties :: SurfaceMesh v d -> V.Vector (Maybe v)
+pointProperties :: Eq v => SurfaceMesh v d -> V.Vector (Maybe v)
 pointProperties = properties
 
 -------------------------------------------------------------------------------
@@ -645,7 +647,7 @@ instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge
 
 
 instance GraphM.PointGraph (SurfaceMesh v d) Vertex Point where
-  point _ v = Point v
+  point _ = iso Point (\(Point v) -> v)
 
 -------------------------------------------------------------------------------
 -- Garbage temp tests

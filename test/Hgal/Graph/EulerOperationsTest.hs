@@ -4,193 +4,150 @@
 
 module Hgal.Graph.EulerOperationsTest where
 
+import Control.Exception
 import Control.Lens
 import Control.Monad.State
 import Data.Either
 import Data.Maybe
-import Linear
+import Linear (V3(..))
 import Test.Tasty
 import Test.Tasty.Hspec
 
 import Hgal.Graph.Class
 import qualified Hgal.Graph.ClassM as M
 import Hgal.Graph.EulerOperations as Euler
+import Hgal.Graph.Fixtures
 import Hgal.Graph.Helpers
 import Hgal.Graph.Loops
 import Hgal.Graph.Predicates
-
 import Hgal.Data.SurfaceMesh (SurfaceMesh)
-import qualified Hgal.Data.SurfaceMesh as SurfaceMesh
-import qualified Hgal.Data.SurfaceMeshTest as SurfaceMeshTest
-
-u, v, w, x, y, z :: forall g v f. GraphTest g v f => v
-u = vertexI @g 0
-v = vertexI @g 1
-w = vertexI @g 2
-x = vertexI @g 3
-y = vertexI @g 4
-z = vertexI @g 5
-
-f1, f2, f3 :: forall g v f. GraphTest g v f => f
-f1 = faceI @g 0
-f2 = faceI @g 1
-f3 = faceI @g 2
-
-class GraphTest g v f | g -> v, g -> f where
-  surfaceFixture1 :: g
-  surfaceFixture2 :: g
-  surfaceFixture3 :: g
-  vertexI :: Int -> v
-  faceI :: Int -> f
-
-instance Num a => GraphTest (SurfaceMesh.SurfaceMesh (V3 a) ()) SurfaceMesh.Vertex SurfaceMesh.Face where
-  surfaceFixture1 = SurfaceMeshTest.surfaceFixture
-  surfaceFixture2 = SurfaceMeshTest.surfaceFixture2
-  surfaceFixture3 = SurfaceMeshTest.surfaceFixture3
-  vertexI = SurfaceMesh.Vertex
-  faceI = SurfaceMesh.Face
 
 
 test_eulerOpertations :: IO TestTree
 test_eulerOpertations = do
-  let sm = SurfaceMesh.empty () :: SurfaceMesh.SurfaceMesh (V3 Double) ()
   specs <- concat <$> mapM testSpecs
-           [ joinFaceTest sm
-           , joinVertexInteriorTest sm
-           , joinVertexExteriorTest1 sm
-           , joinVertexExteriorTest2 sm
-           , splitVertexTest sm
-           , splitJoinVertexInverseTest sm
+           [ joinFaceTest @Double @(SurfaceMesh (V3 Double) ())
+           , joinVertexInteriorTest @Double @(SurfaceMesh (V3 Double) ())
+           , joinVertexExteriorTest1 @Double @(SurfaceMesh (V3 Double) ())
+           , joinVertexExteriorTest2 @Double @(SurfaceMesh (V3 Double) ())
+           , splitVertexTest @Double @(SurfaceMesh (V3 Double) ())
+           , splitJoinVertexInverseTest @Double @(SurfaceMesh (V3 Double) ())
            ]
   return $ testGroup "EulerOperations" [testGroup "SurfaceMesh static test" specs]
 
 
-joinFaceTest :: forall g v h e f. GraphTest g v f
-             => M.MutableHalfedgeGraph (State g) g v h e
-             => M.MutableFaceGraph (State g) g v h e f
-             => MutableHalfedgeGraph g v h e
-             => MutableFaceGraph g v h e f
-             => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
-             => g -> Spec
-joinFaceTest _ =
-  describe "joinFace" $ do
-    let g = surfaceFixture1 @g
-        e = fromJust $ halfedgeVV g (w @g) (v @g)
-        (e', g') = Euler.joinFace (setHalfedge g (f1 @g) e) e
-    it "edges count" $ do
-      exactNumEdges g' `shouldBe` 6
-    it "faces count" $ do
-      exactNumFaces g' `shouldBe` 2
-    context "halfedges check" $ do
-      let haf = halfedgesAroundFace g' (halfedge g' (f1 @g))
-      it "halfedgesAroundFace count" $ do
-        length haf `shouldBe` 4
-      it "halfedges have correct face" $ do
-        all ((== (f1 @g)) . face g') haf `shouldBe` True
-    it "deleted face is no more" $ do
-      all (\x -> x == (f1 @g) || x == (f3 @g)) (faces g') `shouldBe` True
-    it "vertices degree" $ do
-      degree g' (w @g) `shouldBe` 2
-      degree g' (v @g) `shouldBe` 3
-    it "valid poylygon mesh" $ do
-      either id show (isValidPolygonMesh g') `shouldBe` "True"
+testFaceFixture :: forall g v h e f. FaceGraph g v h e f
+                => M.FaceGraph (State g) g v h e f
+                => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
+                => FaceFixture g v h e f -> Spec
+testFaceFixture f = do
+  let g = faceFixture f
+  it "valid fixture" $ do
+    either id show (isValidPolygonMesh @g @v @h @e @f g) `shouldBe` "True"
+    notElem (nullVertex g) (($ f) <$> [u, v, w, x, y, z]) `shouldBe` True
 
-joinVertexInteriorTest :: forall g v h e f. GraphTest g v f
-                       => M.MutableHalfedgeGraph (State g) g v h e
-                       => M.MutableFaceGraph (State g) g v h e f
-                       => MutableHalfedgeGraph g v h e
-                       => MutableFaceGraph g v h e f
-                       => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
-                       => g -> Spec
-joinVertexInteriorTest g =
+joinFaceTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+joinFaceTest = do
+  f <- runIO (surfaceFixture1 @a @g @v @h @e @f @p)
+  describe "joinFace" $ do
+      let g = faceFixture f
+          e = fromJust $ halfedgeVV g (w f) (v f)
+          (e', g') = Euler.joinFace (setHalfedge g (f1 f) e) e
+      testFaceFixture f
+      it "edges count" $ do
+        exactNumEdges g' `shouldBe` 6
+      it "faces count" $ \f -> do
+        exactNumFaces g' `shouldBe` 2
+      context "halfedges check" $ do
+        let haf = halfedgesAroundFace g' (halfedge g' (f1 f))
+        it "halfedgesAroundFace count" $ do
+          length haf `shouldBe` 4
+        it "halfedges have correct face" $ do
+          all ((== f1 f) . face g') haf `shouldBe` True
+      it "deleted face is no more" $ do
+        all (\x -> x == f1 f || x == f3 f) (faces g') `shouldBe` True
+      it "vertices degree" $ do
+        degree g' (w f) `shouldBe` 2
+        degree g' (v f) `shouldBe` 3
+      it "valid poylygon mesh" $ do
+        either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+joinVertexInteriorTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+joinVertexInteriorTest = do
+  f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
   describe "joinVertexInteriorTest" $ do
-    let g = surfaceFixture3 @g
-        e = fromJust $ halfedgeVV g (w @g) (x @g)
+    let g = faceFixture f
+        e = fromJust $ halfedgeVV g (w f) (x f)
         (e', g') = Euler.joinVertex g e
     it "vertex count" $ do
       exactNumVertices g' `shouldBe` 5
     it "edges count" $ do
       exactNumEdges g' `shouldBe` 6
     it "halfedges count" $ do
-      length (halfedgesAroundFace g' (halfedge g' (f1 @g))) `shouldBe` 3
-      length (halfedgesAroundFace g' (halfedge g' (f2 @g))) `shouldBe` 3
+      length (halfedgesAroundFace g' (halfedge g' (f1 f))) `shouldBe` 3
+      length (halfedgesAroundFace g' (halfedge g' (f2 f))) `shouldBe` 3
     it "faces count" $ do
       exactNumFaces g' `shouldBe` 2
     it "vertices degree" $ do
-      degree g' (x @g) `shouldBe` 4
+      degree g' (x f) `shouldBe` 4
     it "valid poylygon mesh" $ do
       either id show (isValidPolygonMesh g') `shouldBe` "True"
 
-joinVertexExteriorTest1 :: forall g v h e f. GraphTest g v f
-                        => M.MutableHalfedgeGraph (State g) g v h e
-                        => M.MutableFaceGraph (State g) g v h e f
-                        => MutableHalfedgeGraph g v h e
-                        => MutableFaceGraph g v h e f
-                        => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
-                        => g -> Spec
-joinVertexExteriorTest1 g =
+joinVertexExteriorTest1 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+joinVertexExteriorTest1 = do
+  f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
   describe "joinVertexExteriorTest1" $ do
-    let g = surfaceFixture3 @g
-        e = fromJust $ halfedgeVV g (w @g) (y @g)
+    let g = faceFixture f
+        e = fromJust $ halfedgeVV g (w f) (y f)
     it "fixture validity" $ do
-      source g e `shouldBe` (w @g)
-      target g e `shouldBe` (y @g)
+      source g e `shouldBe` w f
+      target g e `shouldBe` y f
     let (e', g') = Euler.joinVertex g e
     it "vertex count" $ do
       exactNumVertices g' `shouldBe` 5
     it "halfedges count" $ do
-      length (halfedgesAroundFace g' (halfedge g' (f1 @g))) `shouldBe` 4
-      length (halfedgesAroundFace g' (halfedge g' (f2 @g))) `shouldBe` 3
+      length (halfedgesAroundFace g' (halfedge g' (f1 f))) `shouldBe` 4
+      length (halfedgesAroundFace g' (halfedge g' (f2 f))) `shouldBe` 3
     it "edges count" $ do
       exactNumEdges g' `shouldBe` 6
     it "faces count" $ do
       exactNumFaces g' `shouldBe` 2
     it "vertices degree" $ do
-      degree g' (y @g) `shouldBe` 3
+      degree g' (y f) `shouldBe` 3
     it "valid poylygon mesh" $ do
       either id show (isValidPolygonMesh g') `shouldBe` "True"
 
-joinVertexExteriorTest2 :: forall g v h e f. GraphTest g v f
-                        => M.MutableHalfedgeGraph (State g) g v h e
-                        => M.MutableFaceGraph (State g) g v h e f
-                        => MutableHalfedgeGraph g v h e
-                        => MutableFaceGraph g v h e f
-                        => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
-                        => g -> Spec
-joinVertexExteriorTest2 g =
+joinVertexExteriorTest2 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+joinVertexExteriorTest2 = do
+  f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
   describe "joinVertexExteriorTest2" $ do
-    let g = surfaceFixture3 @g
-        e = fromJust $ halfedgeVV g (y @g) (w @g)
+    let g = faceFixture f
+        e = fromJust $ halfedgeVV g (y f) (w f)
         (e', g') = Euler.joinVertex g e
     it "fixture validity" $ do
-      source g e `shouldBe` (y @g)
-      target g e `shouldBe` (w @g)
+      source g e `shouldBe` y f
+      target g e `shouldBe` w f
     it "vertex count" $ do
       exactNumVertices g' `shouldBe` 5
     it "halfedges count" $ do
-      length (halfedgesAroundFace g' (halfedge g' (f1 @g))) `shouldBe` 4
-      length (halfedgesAroundFace g' (halfedge g' (f2 @g))) `shouldBe` 3
+      length (halfedgesAroundFace g' (halfedge g' (f1 f))) `shouldBe` 4
+      length (halfedgesAroundFace g' (halfedge g' (f2 f))) `shouldBe` 3
     it "edges count" $ do
       exactNumEdges g' `shouldBe` 6
     it "faces count" $ do
       exactNumFaces g' `shouldBe` 2
     it "vertices degree" $ do
-      degree g' (w @g) `shouldBe` 3
+      degree g' (w f) `shouldBe` 3
     it "valid poylygon mesh" $ do
       either id show (isValidPolygonMesh g') `shouldBe` "True"
 
-splitVertexTest :: forall g v h e f. GraphTest g v f
-                => M.MutableHalfedgeGraph (State g) g v h e
-                => M.MutableFaceGraph (State g) g v h e f
-                => MutableHalfedgeGraph g v h e
-                => MutableFaceGraph g v h e f
-                => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
-                => g -> Spec
-splitVertexTest g =
+splitVertexTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+splitVertexTest = do
+  f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
   describe "splitVertexTest" $ do
-    let g = surfaceFixture3 @g
-        h1 = fromJust $ halfedgeVV g (w @g) (y @g)
-        h2 = fromJust $ halfedgeVV g (z @g) (y @g)
+    let g = faceFixture f
+        h1 = fromJust $ halfedgeVV g (w f) (y f)
+        h2 = fromJust $ halfedgeVV g (z f) (y f)
     it "fixture validity" $ do
       face g h2 `shouldBe` nullFace g
     let (e', g') = Euler.splitVertex g h1 h2
@@ -204,22 +161,17 @@ splitVertexTest g =
     it "valid poylygon mesh" $ do
       either id show (isValidPolygonMesh g') `shouldBe` "True"
 
-splitJoinVertexInverseTest :: forall g v h e f. GraphTest g v f
-                           => M.MutableHalfedgeGraph (State g) g v h e
-                           => M.MutableFaceGraph (State g) g v h e f
-                           => MutableHalfedgeGraph g v h e
-                           => MutableFaceGraph g v h e f
-                           => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
-                           => g -> Spec
-splitJoinVertexInverseTest g =
+splitJoinVertexInverseTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+splitJoinVertexInverseTest = do
+  f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
   describe "splitVertexTest" $ do
-    let g = surfaceFixture3 @g
-        h = fromJust $ halfedgeVV g (w @g) (x @g)
+    let g = faceFixture f
+        h = fromJust $ halfedgeVV g (w f) (x f)
         (_, g1) = Euler.joinVertex g h
     it "valid poylygon mesh" $ do
       either id show (isValidPolygonMesh g1) `shouldBe` "True"
-    let h1 = fromJust $ halfedgeVV g1 (z @g) (x @g)
-        h2 = fromJust $ halfedgeVV g1 (v @g) (x @g)
+    let h1 = fromJust $ halfedgeVV g1 (z f) (x f)
+        h2 = fromJust $ halfedgeVV g1 (v f) (x f)
         (e, g2) = Euler.splitVertex g1 h1 h2
         (_, g3) = Euler.joinVertex g2 e
     it "vertex count" $ do

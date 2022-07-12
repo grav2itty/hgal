@@ -53,9 +53,9 @@ makeTriangle g p0 p1 p2 = do
   setFace h1' nullF
   setFace h2' nullF
 
-  replaceProperty g (point g v0) p0
-  replaceProperty g (point g v1) p1
-  replaceProperty g (point g v2) p2
+  replaceProperty g (view (point g) v0) p0
+  replaceProperty g (view (point g) v1) p1
+  replaceProperty g (view (point g) v2) p2
 
   opposite h2'
 
@@ -69,10 +69,10 @@ makeQuad g p0 p1 p2 p3 = do
   v1 <- addVertex g
   v2 <- addVertex g
   v3 <- addVertex g
-  replaceProperty g (point g v0) p0
-  replaceProperty g (point g v1) p1
-  replaceProperty g (point g v2) p2
-  replaceProperty g (point g v3) p3
+  replaceProperty g (view (point g) v0) p0
+  replaceProperty g (view (point g) v1) p1
+  replaceProperty g (view (point g) v2) p2
+  replaceProperty g (view (point g) v3) p3
   formQuad g v0 v2 v2 v3
 
 formQuad :: MutableHalfedgeGraph m g v h e
@@ -148,7 +148,7 @@ makeHexahedron g p0 p1 p2 p3 p4 p5 p6 p7 = do
   (_, hb') <- foldM worker (ht, hb) [0..3]
   hb'' <- foldM worker2 hb' [0..3]
 
-  mapM_ (uncurry $ replaceProperty g) (zip (point g <$> vs) [p0, p1, p2, p3, p4, p5, p6, p7])
+  mapM_ (uncurry $ replaceProperty g) (zip (view (point g) <$> vs) [p0, p1, p2, p3, p4, p5, p6, p7])
 
   (next <=< next) hb''
 
@@ -171,8 +171,8 @@ makeRegularPrism g n center height radius isClosed = do
     let p1 = center & _x +~ (radius * cos (i' * step))
                     & _z -~ (radius * sin (i' * step))
     let p2 = p1 & _y +~ height
-    replaceProperty g (point g $ vs ! (i + n)) p1
-    replaceProperty g (point g $ vs ! i) p2
+    replaceProperty g (view (point g) $ vs ! (i + n)) p1
+    replaceProperty g (view (point g) $ vs ! i) p2
 
   forM_ [0..n-1] $ \i -> do
     let ii = mod (i+1) n
@@ -182,8 +182,8 @@ makeRegularPrism g n center height radius isClosed = do
   when isClosed $ do
     top <- addVertex g
     bot <- addVertex g
-    replaceProperty g (point g top) (_y +~ height $ center)
-    replaceProperty g (point g bot) center
+    replaceProperty g (view (point g) top) (_y +~ height $ center)
+    replaceProperty g (view (point g) bot) center
 
     forM_ [0..n-1] $ \i -> do
       let ii = mod (i+1) n
