@@ -10,8 +10,7 @@ setBorder :: MutableFaceGraph m g v h e f
           => g -> h -> m ()
 setBorder g h = setFace h =<< nullFace g
 
-copy :: MutableHalfedgeGraph m g v h e
-     => MutableFaceGraph m g v h e f
+copy :: MutableFaceGraph m g v h e f
      => g -> h -> m h
 copy g h = do
   e <- addEdge g
@@ -59,8 +58,7 @@ setFaceInFaceLoop h f = worker h
       n <- next hx
       when (n /= h) (worker n)
 
-insertHalfedge :: MutableHalfedgeGraph m g v h e
-               => MutableFaceGraph m g v h e f
+insertHalfedge :: MutableFaceGraph m g v h e f
                => h -> h -> m ()
 insertHalfedge h f = do
   setNext h =<< next f

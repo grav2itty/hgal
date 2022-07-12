@@ -2,7 +2,9 @@ module Hgal.Graph.ClassM where
 
 import Control.Lens(Iso'())
 import Control.Monad.State
+
 import qualified Hgal.Graph.Class as Pure
+import Hgal.Data.PropertyM
 
 
 class Element m a where
@@ -231,6 +233,7 @@ class
 
 class
   ( FaceGraph m g v h e f,
+    MutableHalfedgeGraph m g v h e,
     RemovableElement m f,
     SetHalfedge m f h,
     SetFace m h f
@@ -244,6 +247,5 @@ class
   addFace _ = state Pure.addFace
 
 
-class PointGraph g v p | g -> v, g -> p where
-  -- point :: g -> v -> p
-  point :: g -> Iso' v p
+class Property m g (Pure.Point v) p => PointGraph m g v p where
+

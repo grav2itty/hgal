@@ -1,5 +1,8 @@
 module Hgal.Graph.Class where
 
+import Hgal.Data.Property
+
+
 class Element g a where
   isBorder :: g -> a -> Bool
   isValid :: g -> a -> Either String Bool
@@ -76,9 +79,15 @@ class
 
 class
   ( FaceGraph g v h e f,
+    MutableHalfedgeGraph g v h e,
     RemovableElement g f,
     SetHalfedge g f h,
     SetFace g h f
   ) => MutableFaceGraph g v h e f | g -> v, g -> h, g -> e, g -> f where
 
   addFace :: g -> (f, g)
+
+
+newtype Point a = Point a
+
+class Property g (Point v) p => PointGraph g v p where

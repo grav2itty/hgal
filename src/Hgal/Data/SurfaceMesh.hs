@@ -385,13 +385,13 @@ halfedgeVV sm sour tar =
 -------------------------------------------------------------------------------
 -- Properties
 
-instance Eq v => Property (SurfaceMesh v d) Point v where
-  property (Point (Vertex i)) = vpoint.lens (`Seq.index` i) (flip $ Seq.update i)
+instance Eq v => Property (SurfaceMesh v d) (Graph.Point Vertex) v where
+  property (Graph.Point (Vertex i)) = vpoint.lens (`Seq.index` i) (flip $ Seq.update i)
   properties sm = V.fromList. toList $ _vpoint sm
 
-  find sm v = Point . Vertex <$> Seq.elemIndexL (Just v) (_vpoint sm)
+  find sm v = Graph.Point . Vertex <$> Seq.elemIndexL (Just v) (_vpoint sm)
 
-instance Eq v => M.Property (St v d) (SurfaceMesh v d) Point v where
+instance Eq v => M.Property (St v d) (SurfaceMesh v d) (Graph.Point Vertex) v where
   getProperty _ k = use (property k)
   adjustProperty _ f k = modifying (property k) (fmap f)
   replaceProperty _ k v = assign (property k) (Just v)
@@ -645,9 +645,8 @@ instance GraphM.MutableHalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge 
 instance GraphM.FaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face where
 instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face where
 
-
-instance GraphM.PointGraph (SurfaceMesh v d) Vertex Point where
-  point _ = iso Point (\(Point v) -> v)
+instance Eq v => Graph.PointGraph (SurfaceMesh v d) Vertex v
+instance Eq v => GraphM.PointGraph (St v d) (SurfaceMesh v d) Vertex v
 
 -------------------------------------------------------------------------------
 -- Garbage temp tests

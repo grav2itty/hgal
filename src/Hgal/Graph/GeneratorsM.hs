@@ -8,15 +8,14 @@ import Data.Vector ((!))
 import qualified Data.Vector as V
 import Linear hiding (point)
 
+import Hgal.Graph.Class (Point(..))
 import Hgal.Graph.ClassM
 import Hgal.Data.PropertyM
 import qualified Hgal.Graph.EulerOperationsM as Euler
 
 
-makeTriangle :: MutableHalfedgeGraph m g v h e
-             => MutableFaceGraph m g v h e f
-             => PointGraph g v k
-             => Property m g k p
+makeTriangle :: MutableFaceGraph m g v h e f
+             => PointGraph m g v p
              => g -> p -> p -> p -> m h
 makeTriangle g p0 p1 p2 = do
   v0 <- addVertex g
@@ -53,30 +52,27 @@ makeTriangle g p0 p1 p2 = do
   setFace h1' nullF
   setFace h2' nullF
 
-  replaceProperty g (view (point g) v0) p0
-  replaceProperty g (view (point g) v1) p1
-  replaceProperty g (view (point g) v2) p2
+  replaceProperty g (Point v0) p0
+  replaceProperty g (Point v1) p1
+  replaceProperty g (Point v2) p2
 
   opposite h2'
 
-makeQuad :: MutableHalfedgeGraph m g v h e
-         => MutableFaceGraph m g v h e f
-         => PointGraph g v k
-         => Property m g k p
+makeQuad :: MutableFaceGraph m g v h e f
+         => PointGraph m g v p
          => g -> p -> p -> p -> p -> m h
 makeQuad g p0 p1 p2 p3 = do
   v0 <- addVertex g
   v1 <- addVertex g
   v2 <- addVertex g
   v3 <- addVertex g
-  replaceProperty g (view (point g) v0) p0
-  replaceProperty g (view (point g) v1) p1
-  replaceProperty g (view (point g) v2) p2
-  replaceProperty g (view (point g) v3) p3
+  replaceProperty g (Point v0) p0
+  replaceProperty g (Point v1) p1
+  replaceProperty g (Point v2) p2
+  replaceProperty g (Point v3) p3
   formQuad g v0 v2 v2 v3
 
-formQuad :: MutableHalfedgeGraph m g v h e
-         => MutableFaceGraph m g v h e f
+formQuad :: MutableFaceGraph m g v h e f
          => g -> v -> v -> v -> v -> m h
 formQuad g v0 v1 v2 v3 = do
   h0 <- halfedge =<< addEdge g
@@ -120,10 +116,8 @@ formQuad g v0 v1 v2 v3 = do
   setFace h3' nullF
   opposite h3'
 
-makeHexahedron :: MutableHalfedgeGraph m g v h e
-               => MutableFaceGraph m g v h e f
-               => PointGraph g v k
-               => Property m g k p
+makeHexahedron :: MutableFaceGraph m g v h e f
+               => PointGraph m g v p
                => Eq h
                => g -> p -> p -> p -> p -> p -> p -> p -> p -> m h
 makeHexahedron g p0 p1 p2 p3 p4 p5 p6 p7 = do
@@ -148,14 +142,12 @@ makeHexahedron g p0 p1 p2 p3 p4 p5 p6 p7 = do
   (_, hb') <- foldM worker (ht, hb) [0..3]
   hb'' <- foldM worker2 hb' [0..3]
 
-  mapM_ (uncurry $ replaceProperty g) (zip (view (point g) <$> vs) [p0, p1, p2, p3, p4, p5, p6, p7])
+  mapM_ (uncurry $ replaceProperty g) (zip (Point <$> vs) [p0, p1, p2, p3, p4, p5, p6, p7])
 
   (next <=< next) hb''
 
-makeRegularPrism :: MutableHalfedgeGraph m g v h e
-                 => MutableFaceGraph m g v h e f
-                 => PointGraph g v k
-                 => Property m g k (p a)
+makeRegularPrism :: MutableFaceGraph m g v h e f
+                 => PointGraph m g v (p a)
                  => (Ord v, Eq f, Eq h)
                  => Floating a
                  => R3 p
@@ -171,8 +163,8 @@ makeRegularPrism g n center height radius isClosed = do
     let p1 = center & _x +~ (radius * cos (i' * step))
                     & _z -~ (radius * sin (i' * step))
     let p2 = p1 & _y +~ height
-    replaceProperty g (view (point g) $ vs ! (i + n)) p1
-    replaceProperty g (view (point g) $ vs ! i) p2
+    replaceProperty g (Point $ vs ! (i + n)) p1
+    replaceProperty g (Point $ vs ! i) p2
 
   forM_ [0..n-1] $ \i -> do
     let ii = mod (i+1) n
@@ -182,8 +174,8 @@ makeRegularPrism g n center height radius isClosed = do
   when isClosed $ do
     top <- addVertex g
     bot <- addVertex g
-    replaceProperty g (view (point g) top) (_y +~ height $ center)
-    replaceProperty g (view (point g) bot) center
+    replaceProperty g (Point top) (_y +~ height $ center)
+    replaceProperty g (Point bot) center
 
     forM_ [0..n-1] $ \i -> do
       let ii = mod (i+1) n

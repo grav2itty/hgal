@@ -32,14 +32,12 @@ data HalfedgeFixture g v h e f = HalfedgeFixture
   { halfedgeFixture :: g
   , h1, h2, h3 :: h
   }
+
 class
   ( FromOFF g,
-    MutableHalfedgeGraph g v h e,
     MutableFaceGraph g v h e f,
-    M.MutableHalfedgeGraph (State g) g v h e,
     M.MutableFaceGraph (State g) g v h e f,
-    M.PointGraph g v p,
-    Property g p (V3 a),
+    PointGraph g v (V3 a),
     Num a,
     Eq v, Eq h, Eq f, Show v, Show h, Show f
   ) => SurfaceFixtureC a g v h e f p | g -> v, g ->h, g -> e, g -> f, g -> p
@@ -56,7 +54,7 @@ surfaceFixture1 :: SurfaceFixtureC a g v h e f p
                 => IO (FaceFixture g v h e f)
 surfaceFixture1 = do
   g <- fromOFF "test/Hgal/Meshes/fixture1.off"
-  let [u, v, w, x, y] = view (from $ M.point g) . fromJust . find g <$>
+  let [u, v, w, x, y] = (\(Point a) -> a) . fromJust . find g <$>
         [V3 0 0 0, V3 1 0 0, V3 0 1 0, V3 1 1 0, V3 2 0 0]
       f1 = let h = halfedge g u
            in if isBorder g h then face g (opposite g h) else face g h
@@ -70,7 +68,7 @@ surfaceFixture2 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p
                 => IO (FaceFixture g v h e f)
 surfaceFixture2 = do
   g <- fromOFF "test/Hgal/Meshes/fixture2.off"
-  let [u, v, w, x, y] = view (from $ M.point g) . fromJust . find g <$>
+  let [u, v, w, x, y] = (\(Point a) -> a) . fromJust . find g <$>
         [V3 0 2 0, V3 2 2 0, V3 0 0 0, V3 2 0 0, V3 1 1 0]
       hs = fromJust . uncurry (halfedgeVV @g @v @h g) <$>
         [(x, v), (v, u), (u, w), (w, x)]
@@ -81,7 +79,7 @@ surfaceFixture3 :: SurfaceFixtureC a g v h e f p
                 => IO (FaceFixture g v h e f)
 surfaceFixture3 = do
   g <- fromOFF "test/Hgal/Meshes/fixture3.off"
-  let [u, v, w, x, y, z] = view (from $ M.point g) . fromJust . find g <$>
+  let [u, v, w, x, y, z] = (\(Point a) -> a) . fromJust . find g <$>
         [V3 0 1 0, V3 0 0 0, V3 1 0 0, V3 1 1 0, V3 2 0 0, V3 2 1 0]
       f1 = let h = halfedge g u
            in if isBorder g h then face g (opposite g h) else face g h

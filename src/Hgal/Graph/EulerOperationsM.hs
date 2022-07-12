@@ -22,7 +22,6 @@ import Hgal.Graph.LoopsM
 
 
 addFace :: Foldable t
-        => MutableHalfedgeGraph m g v h e
         => MutableFaceGraph m g v h e f
         => (Ord v, Eq h, Eq f)
         => g -> t v -> m f
@@ -150,8 +149,7 @@ addFace g vs = do
         forM_ vertices (adjustIncomingHalfedge g)
         return f
 
-removeFace :: MutableHalfedgeGraph m g v h e
-           => MutableFaceGraph m g v h e f
+removeFace :: MutableFaceGraph m g v h e f
            => Eq h
            => g -> h -> m ()
 removeFace g h = do
@@ -192,8 +190,7 @@ addEdge g s t = do
   (setTarget ?? s) =<< (opposite <=< halfedge) e
   return e
 
-splitEdge :: MutableHalfedgeGraph m g v h e
-          => MutableFaceGraph m g v h e f
+splitEdge :: MutableFaceGraph m g v h e f
           => Eq h
           => g -> h -> m h
 splitEdge g h = do
@@ -201,8 +198,7 @@ splitEdge g h = do
   opposite =<< splitVertex g p =<< opposite h
 
 
-joinLoop :: MutableHalfedgeGraph m g v h e
-         => MutableFaceGraph m g v h e f
+joinLoop :: MutableFaceGraph m g v h e f
          => (Eq h, Eq f)
          => g -> h -> h -> m h
 joinLoop g h1 h2 = do
@@ -249,8 +245,7 @@ joinLoop g h1 h2 = do
   worker3 h2
   return h1
 
-splitLoop :: MutableHalfedgeGraph m g v h e
-          => MutableFaceGraph m g v h e f
+splitLoop :: MutableFaceGraph m g v h e f
           => (Eq v, Eq h)
           => g -> h -> h -> h -> m h
 splitLoop g h i j  = do
@@ -342,8 +337,7 @@ splitLoop g h i j  = do
 
   opposite hnew
 
-splitVertex :: MutableHalfedgeGraph m g v h e
-            => MutableFaceGraph m g v h e f
+splitVertex :: MutableFaceGraph m g v h e f
             => Eq h
             => g -> h -> h -> m h
 splitVertex g h1 h2 = do
@@ -369,8 +363,7 @@ splitVertex g h1 h2 = do
   setVertexHalfedge hnewopp'
   return hnew
 
-joinVertex :: MutableHalfedgeGraph m g v h e
-           => MutableFaceGraph m g v h e f
+joinVertex :: MutableFaceGraph m g v h e f
            => (Eq v, Eq h)
            => g -> h -> m h
 joinVertex g h = do
@@ -407,8 +400,7 @@ joinVertex g h = do
 
   return hprev
 
-makeHole :: MutableHalfedgeGraph m g v h e
-         => MutableFaceGraph m g v h e f
+makeHole :: MutableFaceGraph m g v h e f
          => Eq h
          => g -> h -> m ()
 makeHole g h = do
@@ -420,8 +412,7 @@ makeHole g h = do
                        ) h
   remove fd
 
-fillHole :: MutableHalfedgeGraph m g v h e
-         => MutableFaceGraph m g v h e f
+fillHole :: MutableFaceGraph m g v h e f
          => Eq h
          => g -> h -> m ()
 fillHole g h = do
@@ -429,8 +420,7 @@ fillHole g h = do
   halfedgeAroundFace g (\_ h' -> setFace h' f) h
   setHalfedge f h
 
-addCenterVertex :: MutableHalfedgeGraph m g v h e
-                => MutableFaceGraph m g v h e f
+addCenterVertex :: MutableFaceGraph m g v h e f
                 => Eq h
                 => g -> h -> m h
 addCenterVertex g h = do
@@ -463,8 +453,7 @@ addCenterVertex g h = do
   setVertexHalfedge hnew
   return hnew
 
-removeCenterVertex :: MutableHalfedgeGraph m g v h e
-                   => MutableFaceGraph m g v h e f
+removeCenterVertex :: MutableFaceGraph m g v h e f
                    => Eq h
                    => g -> h -> m h
 removeCenterVertex g h = do
@@ -491,8 +480,7 @@ removeCenterVertex g h = do
 
   return hret
 
-addVertexAndFaceToBorder :: MutableHalfedgeGraph m g v h e
-                         => MutableFaceGraph m g v h e f
+addVertexAndFaceToBorder :: MutableFaceGraph m g v h e f
                          => Eq h
                          => g -> h -> h -> m h
 addVertexAndFaceToBorder g h1 h2 = do
@@ -524,8 +512,7 @@ addVertexAndFaceToBorder g h1 h2 = do
   setHalfedge f ohe1
   return ohe2
 
-addFaceToBorder :: MutableHalfedgeGraph m g v h e
-                => MutableFaceGraph m g v h e f
+addFaceToBorder :: MutableFaceGraph m g v h e f
                 => Eq h
                 => g -> h -> h -> m h
 addFaceToBorder g h1 h2 = do
@@ -552,8 +539,7 @@ addFaceToBorder g h1 h2 = do
   setHalfedge f newh
   return newh
 
-joinFace :: MutableHalfedgeGraph m g v h e
-         => MutableFaceGraph m g v h e f
+joinFace :: MutableFaceGraph m g v h e f
          => Eq h
          => g -> h -> m h
 joinFace g h = do
@@ -583,8 +569,7 @@ joinFace g h = do
   remove =<< edge h
   return hprev
 
-splitFace :: MutableHalfedgeGraph m g v h e
-          => MutableFaceGraph m g v h e f
+splitFace :: MutableFaceGraph m g v h e f
           => Eq h
           => g -> h -> h -> m h
 splitFace g h1 h2 = do

@@ -49,11 +49,11 @@ testFaceFixture f = do
 joinFaceTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinFaceTest = do
   f <- runIO (surfaceFixture1 @a @g @v @h @e @f @p)
+  testFaceFixture f
   describe "joinFace" $ do
       let g = faceFixture f
           e = fromJust $ halfedgeVV g (w f) (v f)
           (e', g') = Euler.joinFace (setHalfedge g (f1 f) e) e
-      testFaceFixture f
       it "edges count" $ do
         exactNumEdges g' `shouldBe` 6
       it "faces count" $ \f -> do
@@ -75,6 +75,7 @@ joinFaceTest = do
 joinVertexInteriorTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinVertexInteriorTest = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
+  testFaceFixture f
   describe "joinVertexInteriorTest" $ do
     let g = faceFixture f
         e = fromJust $ halfedgeVV g (w f) (x f)
@@ -96,6 +97,7 @@ joinVertexInteriorTest = do
 joinVertexExteriorTest1 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinVertexExteriorTest1 = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
+  testFaceFixture f
   describe "joinVertexExteriorTest1" $ do
     let g = faceFixture f
         e = fromJust $ halfedgeVV g (w f) (y f)
@@ -120,6 +122,7 @@ joinVertexExteriorTest1 = do
 joinVertexExteriorTest2 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinVertexExteriorTest2 = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
+  testFaceFixture f
   describe "joinVertexExteriorTest2" $ do
     let g = faceFixture f
         e = fromJust $ halfedgeVV g (y f) (w f)
@@ -144,6 +147,7 @@ joinVertexExteriorTest2 = do
 splitVertexTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 splitVertexTest = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
+  testFaceFixture f
   describe "splitVertexTest" $ do
     let g = faceFixture f
         h1 = fromJust $ halfedgeVV g (w f) (y f)
@@ -164,6 +168,7 @@ splitVertexTest = do
 splitJoinVertexInverseTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 splitJoinVertexInverseTest = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
+  testFaceFixture f
   describe "splitVertexTest" $ do
     let g = faceFixture f
         h = fromJust $ halfedgeVV g (w f) (x f)
