@@ -38,9 +38,9 @@ class
     MutableFaceGraph g v h e f,
     M.MutableFaceGraph (State g) g v h e f,
     PointGraph g v (V3 a),
-    Num a,
+    Eq a, Num a,
     Eq v, Eq h, Eq f, Show v, Show h, Show f
-  ) => SurfaceFixtureC a g v h e f p | g -> v, g ->h, g -> e, g -> f, g -> p
+  ) => SurfaceFixtureC a g v h e f p | g -> v, g -> h, g -> e, g -> f, g -> p
 
 instance (Eq a, Num a, Read a) => SurfaceFixtureC a
   (SurfaceMesh (V3 a) ())
@@ -86,3 +86,63 @@ surfaceFixture3 = do
       f2 = let h = halfedge g z
            in if isBorder g h then face g (opposite g h) else face g h
   return $ FaceFixture g u v w x y z f1 f2 f2 f2
+
+surfaceFixture4 :: SurfaceFixtureC a g v h e f p
+                => IO (HalfedgeFixture g v h e f)
+surfaceFixture4 = do
+  g <- fromOFF "test/Hgal/Meshes/fixture4.off"
+  let [v1, v2] = (\(Point a) -> a) <$> findKeys g (== V3 0 0 0)
+      h1 = fromJust $
+           findOf traversed (\x -> isBorder g x && target g x == v1 )
+           (halfedges g)
+      h2 = fromJust $
+           findOf traversed (\x -> isBorder g x && target g x == v2 )
+           (halfedges g)
+  return $ HalfedgeFixture g h1 h2 h2
+
+surfaceFixture5 :: SurfaceFixtureC a g v h e f p
+                => IO (HalfedgeFixture g v h e f)
+surfaceFixture5 = do
+  g <- fromOFF "test/Hgal/Meshes/add_face_to_border.off"
+  let v1 = fromJust $ (\(Point a) -> a) <$> find g (V3 2 1 0)
+      v2 = fromJust $ (\(Point a) -> a) <$> find g (V3 2 (-1) 0)
+      h1 = fromJust $
+           findOf traversed (\x -> isBorder g x && target g x == v1 )
+           (halfedges g)
+      h2 = fromJust $
+           findOf traversed (\x -> isBorder g x && target g x == v2 )
+           (halfedges g)
+  return $ HalfedgeFixture g h1 h2 h2
+
+surfaceFixture6 :: SurfaceFixtureC a g v h e f p
+                => IO (HalfedgeFixture g v h e f)
+surfaceFixture6 = do
+  g <- fromOFF "test/Hgal/Meshes/quad.off"
+  let h1 = halfedge g . head . faces $ g
+      h2 = next g (next g h1)
+  return $ HalfedgeFixture g h1 h2 h2
+
+surfaceFixture7 :: SurfaceFixtureC a g v h e f p
+                => IO (HalfedgeFixture g v h e f)
+surfaceFixture7 = do
+  g <- fromOFF "test/Hgal/Meshes/cube.off"
+  let h1 = head . halfedges $ g
+  return $ HalfedgeFixture g h1 h1 h1
+
+surfaceFixture8 :: SurfaceFixtureC a g v h e f p
+                => IO (HalfedgeFixture g v h e f)
+surfaceFixture8 = do
+  g <- fromOFF "test/Hgal/Meshes/fixture5.off"
+  let v1 = fromJust $ (\(Point a) -> a) <$> find g (V3 0 0 0)
+      v2 = fromJust $ (\(Point a) -> a) <$> find g (V3 1 0 0)
+      v3 = fromJust $ (\(Point a) -> a) <$> find g (V3 0 1 0)
+      h1 = fromJust $
+           findOf traversed (\x -> source g x == v1 && target g x == v2)
+           (halfedges g)
+      h2 = fromJust $
+           findOf traversed (\x -> source g x == v2 && target g x == v3)
+           (halfedges g)
+      h3 = fromJust $
+           findOf traversed (\x -> source g x == v3 && target g x == v1)
+           (halfedges g)
+  return $ HalfedgeFixture g h1 h2 h3

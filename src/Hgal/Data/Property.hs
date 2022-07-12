@@ -8,3 +8,4 @@ class Property s k p | s k -> p, s p -> k where
   properties :: s -> V.Vector (Maybe p)
 
   find :: s -> p -> Maybe k
+  findKeys :: s -> (p -> Bool) -> [k]

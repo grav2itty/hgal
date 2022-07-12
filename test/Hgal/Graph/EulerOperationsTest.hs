@@ -46,6 +46,16 @@ testFaceFixture f = do
     either id show (isValidPolygonMesh @g @v @h @e @f g) `shouldBe` "True"
     notElem (nullVertex g) (($ f) <$> [u, v, w, x, y, z]) `shouldBe` True
 
+testHalfedgeFixture :: forall g v h e f. FaceGraph g v h e f
+                => M.FaceGraph (State g) g v h e f
+                => (Eq v, Eq h, Eq f, Show v, Show h, Show f)
+                => HalfedgeFixture g v h e f -> Spec
+testHalfedgeFixture f = do
+  let g = halfedgeFixture f
+  it "valid fixture" $ do
+    either id show (isValidPolygonMesh @g @v @h @e @f g) `shouldBe` "True"
+    notElem (nullHalfedge g) (($ f) <$> [h1, h2, h3]) `shouldBe` True
+
 joinFaceTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinFaceTest = do
   f <- runIO (surfaceFixture1 @a @g @v @h @e @f @p)
@@ -56,7 +66,7 @@ joinFaceTest = do
           (e', g') = Euler.joinFace (setHalfedge g (f1 f) e) e
       it "edges count" $ do
         exactNumEdges g' `shouldBe` 6
-      it "faces count" $ \f -> do
+      it "faces count" $ do
         exactNumFaces g' `shouldBe` 2
       context "halfedges check" $ do
         let haf = halfedgesAroundFace g' (halfedge g' (f1 f))

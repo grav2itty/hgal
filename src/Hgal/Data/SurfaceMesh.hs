@@ -390,6 +390,7 @@ instance Eq v => Property (SurfaceMesh v d) (Graph.Point Vertex) v where
   properties sm = V.fromList. toList $ _vpoint sm
 
   find sm v = Graph.Point . Vertex <$> Seq.elemIndexL (Just v) (_vpoint sm)
+  findKeys sm f = Graph.Point . Vertex <$> Seq.findIndicesL (maybe False f) (_vpoint sm)
 
 instance Eq v => M.Property (St v d) (SurfaceMesh v d) (Graph.Point Vertex) v where
   getProperty _ k = use (property k)
