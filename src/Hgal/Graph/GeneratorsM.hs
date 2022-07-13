@@ -116,6 +116,85 @@ formQuad g v0 v1 v2 v3 = do
   setFace h3' nullF
   opposite h3'
 
+makeTetrahedron :: MutableFaceGraph m g v h e f
+                => PointGraph m g v p
+                => g
+                -> p -> p -> p -> p
+                -> m h
+makeTetrahedron g p0 p1 p2 p3 = do
+  v0 <- addVertex g
+  v2 <- addVertex g -- this and the next line are switched to keep points in order
+  v1 <- addVertex g
+  v3 <- addVertex g
+  h0 <- halfedge =<< addEdge g
+  h1 <- halfedge =<< addEdge g
+  h2 <- halfedge =<< addEdge g
+  setNext h0 h1
+  setNext h1 h2
+  setNext h2 h0
+  setTarget h0 v1
+  setTarget h1 v2
+  setTarget h2 v0
+  setHalfedge v1 h0
+  setHalfedge v2 h1
+  setHalfedge v0 h2
+  f <- addFace g
+  setFace h0 f
+  setFace h1 f
+  setFace h2 f
+  setHalfedge f h0
+  h0' <- opposite h0
+  h1' <- opposite h1
+  h2' <- opposite h2
+  setNext h0' h2'
+  setNext h2' h1'
+  setNext h1' h0'
+  setTarget h0' v0
+  setTarget h1' v1
+  setTarget h2' v2
+  h3 <- halfedge =<< addEdge g
+  h4 <- halfedge =<< addEdge g
+  h5 <- halfedge =<< addEdge g
+  setTarget h3 v3
+  setTarget h4 v3
+  setTarget h5 v3
+  setHalfedge v3 h3
+  setNext h0' h3
+  setNext h1' h4
+  setNext h2' h5
+  setNext h3 =<< opposite h4
+  setNext h4 =<< opposite h5
+  setNext h5 =<< opposite h3
+  (setNext ?? h0') =<< opposite h4
+  (setNext ?? h1') =<< opposite h5
+  (setNext ?? h2') =<< opposite h3
+  (setTarget ?? v0) =<< opposite h3
+  (setTarget ?? v1) =<< opposite h4
+  (setTarget ?? v2) =<< opposite h5
+
+  f2 <- addFace g
+  setHalfedge f2 h0'
+  setFace h0' f2
+  setFace h3 f2
+  (setFace ?? f2) =<< opposite h4
+  f3 <- addFace g
+  setHalfedge f3 h1'
+  setFace h1' f3
+  setFace h4 f3
+  (setFace ?? f3) =<< opposite h5
+  f4 <- addFace g
+  setHalfedge f4 h2'
+  setFace h2' f4
+  setFace h5 f4
+  (setFace ?? f4) =<< opposite h3
+
+  replaceProperty g (Point v0) p0
+  replaceProperty g (Point v1) p2 -- this and the next line are switched to reorient the surface
+  replaceProperty g (Point v2) p1
+  replaceProperty g (Point v3) p2
+
+  opposite h2'
+
 makeHexahedron :: MutableFaceGraph m g v h e f
                => PointGraph m g v p
                => Eq h
@@ -160,9 +239,9 @@ makeRegularPrism g n center height radius isClosed = do
 
   forM_ [0..n-1] $ \i -> do
     let i' = fromIntegral i
-    let p1 = center & _x +~ (radius * cos (i' * step))
+        p1 = center & _x +~ (radius * cos (i' * step))
                     & _z -~ (radius * sin (i' * step))
-    let p2 = p1 & _y +~ height
+        p2 = p1 & _y +~ height
     replaceProperty g (Point $ vs ! (i + n)) p1
     replaceProperty g (Point $ vs ! i) p2
 
@@ -183,3 +262,97 @@ makeRegularPrism g n center height radius isClosed = do
       Euler.addFace g [bot, vs ! (ii + n), vs ! (i + n)]
 
   fromJust <$> halfedgeVV (vs ! 0) (vs ! 1)
+
+makePyramid :: MutableFaceGraph m g v h e f
+            => PointGraph m g v (p a)
+            => (Ord v, Eq f, Eq h)
+            => Floating a
+            => R3 p
+            => g -> Int -> p a -> a -> a -> Bool -> m h
+makePyramid g n center height radius isClosed = do
+  let step = assert (n >= 3) $
+             2 * pi / fromIntegral n
+
+  apex <- addVertex g
+  vs <- V.replicateM n (addVertex g)
+
+  replaceProperty g (Point apex) (center & _y +~ height)
+
+  forM_ [0..n-1] $ \i -> do
+    let i' = fromIntegral i
+        p = center & _x +~ (radius * cos (i' * step))
+                   & _z -~ (radius * sin (i' * step))
+    replaceProperty g (Point $ vs ! i) p
+
+  forM_ [0..n-1] $ \i -> do
+    let ii = mod (i+1) n
+    Euler.addFace g [apex, vs ! i, vs ! ii]
+
+  when isClosed $ do
+    bot <- addVertex g
+    replaceProperty g (Point bot) center
+
+    forM_ [0..n-1] $ \i -> do
+      let ii = mod (i+1) n
+      Euler.addFace g [bot, vs ! ii, vs ! i]
+
+  fromJust <$> halfedgeVV (vs ! 0) apex
+
+makeIcosahedron :: MutableFaceGraph m g v h e f
+                => PointGraph m g v (p a)
+                => (Ord v, Eq f, Eq h)
+                => Floating a
+                => R3 p
+                => g -> p a -> a -> m h
+makeIcosahedron g center radius = do
+
+  vs <- V.replicateM 12 (addVertex g)
+
+  let phi = (1 + sqrt 5) * 0.5
+      t = radius / sqrt (1 + phi*phi)
+      tphi = t * phi
+
+      ps = V.fromList $ ($ center) <$>
+        [ _yz +~ V2 t tphi
+        , _yz +~ V2 t (-tphi)
+        , _yz +~ V2 (-t) tphi
+        , _yz +~ V2 (-t) (-tphi)
+        , _xy +~ V2 t tphi
+        , _xy +~ V2 t (-tphi)
+        , _xy +~ V2 (-t) tphi
+        , _xy +~ V2 (-t) (-tphi)
+        , _xz +~ V2 tphi t
+        , _xz +~ V2 tphi (-t)
+        , _xz +~ V2 (-tphi) t
+        , _xz +~ V2 (-tphi) (-t)
+        ]
+
+  V.zipWithM_ (replaceProperty g . Point) vs ps
+
+  let faceI =
+        [ (0, 2, 8)
+        , (0, 8, 4)
+        , (0, 4, 6)
+        , (0, 6, 10)
+        , (0, 10, 2)
+        , (1, 9, 3)
+        , (1, 3, 11)
+        , (1, 11, 6)
+        , (1, 6, 4)
+        , (1, 4, 9)
+        , (5, 8, 2)
+        , (5, 2, 7)
+        , (5, 7, 3)
+        , (5, 3, 9)
+        , (5, 9, 8)
+        , (8, 9, 4)
+        , (3, 7, 11)
+        , (11, 7, 10)
+        , (10, 7, 2)
+        , (6, 11, 10)
+        ]
+
+  mapM_ (\(i, j, k) -> Euler.addFace g [vs ! i, vs ! j, vs ! k] ) faceI
+
+  fromJust <$> halfedgeVV (vs ! 5) (vs ! 0)
+
