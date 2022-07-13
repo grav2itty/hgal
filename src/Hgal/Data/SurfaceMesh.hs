@@ -25,6 +25,7 @@ import Hgal.Graph.Loops
 import Hgal.Data.Property
 import qualified Hgal.Data.PropertyM as M
 
+import Hgal.Graph.Predicates (isValidPolygonMesh)
 import Debug.Trace
 import qualified Hgal.Graph.EulerOperations as Euler
 import qualified Hgal.Graph.EulerOperationsM as EulerM
@@ -461,7 +462,7 @@ showConnectivity t s =
 conError :: (Element a, Element b, Show a, Show b)
          => SurfaceMesh v d -> a -> String -> b -> String
 conError sm els s elt =
-  name els ++ " " ++ show els ++ " conneciivity error. " ++
+  name els ++ " " ++ show els ++ " connectivity error. " ++
   s ++ " " ++ name elt ++ " " ++ show elt ++ " is " ++
   if hasValidIndex sm elt then "removed." else "invalid."
 
@@ -685,10 +686,10 @@ foo2 :: SurfaceMesh (V3 Double) MyProps2
 foo2 =
   let sm = empty (MyProps2 (IntMap.empty, IntMap.empty)) :: SurfaceMesh (V3 Double) MyProps2
       f = do
-           GM.makeRegularPrism sm 3 (V3 0 0 0) 7 13 True
+           -- GM.makeRegularPrism sm 3 (V3 0 0 0) 7 13 True
             -- GM.makeTriangle sm (V3 2 2 2) (V3 0 0 0) (V3 1 1 1)
-            -- v1 <- GraphM.addVertex sm
-            -- GraphM.addEdge sm
+            v1 <- GraphM.addVertex sm
+            GraphM.addEdge sm
             -- propertyOf (Vertex 0) ?= 7
             -- propertyOf (Edge 0) ?= Map.fromList [("foo", "bar")]
             -- (propertyOf (Edge 0)._Just.at "foo") ?= "alice"
