@@ -231,8 +231,7 @@ joinLoop g h1 h2 = do
                   setTarget n =<< target hx
                   worker2 n
           gx'' <- worker2 gx'
-          setNext gx'' hn
-          (opposite <=< next) gx''
+          (opposite <=< next) gx'' <* setNext gx'' hn
 
       if hn /= h1 then worker hn gn else return gn
   h2' <- worker h1 h2
@@ -248,7 +247,7 @@ joinLoop g h1 h2 = do
 splitLoop :: MutableFaceGraph m g v h e f
           => (Eq v, Eq h)
           => g -> h -> h -> h -> m h
-splitLoop g h i j  = do
+splitLoop g h i j = do
   th <- target h
   ti <- target i
   tj <- target j
@@ -445,7 +444,7 @@ addCenterVertex g h = do
         setFace gnew fnew
         (setFace ?? fnew) =<< next gnew
         (setHalfedge ?? hx) =<< face hx
-        (worker <=< next <=< opposite) gnew
+        worker =<< (next <=< opposite) gnew
   worker h2
 
   nhnew <- next hnew

@@ -27,11 +27,19 @@ test_eulerOpertations :: IO TestTree
 test_eulerOpertations = do
   specs <- concat <$> mapM testSpecs
            [ joinFaceTest @Double @(SurfaceMesh (V3 Double) ())
+           , removeFaceTest1 @Double @(SurfaceMesh (V3 Double) ())
+           , removeFaceTest2 @Double @(SurfaceMesh (V3 Double) ())
+           , addFaceToBorderTest @Double @(SurfaceMesh (V3 Double) ())
+           , addVertexAndFaceToBorderTest @Double @(SurfaceMesh (V3 Double) ())
            , joinVertexInteriorTest @Double @(SurfaceMesh (V3 Double) ())
            , joinVertexExteriorTest1 @Double @(SurfaceMesh (V3 Double) ())
            , joinVertexExteriorTest2 @Double @(SurfaceMesh (V3 Double) ())
            , splitVertexTest @Double @(SurfaceMesh (V3 Double) ())
            , splitJoinVertexInverseTest @Double @(SurfaceMesh (V3 Double) ())
+           , joinLoopTest @Double @(SurfaceMesh (V3 Double) ())
+           , splitLoopTest @Double @(SurfaceMesh (V3 Double) ())
+           , splitFaceTest @Double @(SurfaceMesh (V3 Double) ())
+           , makeHoleTest @Double @(SurfaceMesh (V3 Double) ())
            ]
   return $ testGroup "EulerOperations" [testGroup "SurfaceMesh static test" specs]
 
@@ -59,8 +67,8 @@ testHalfedgeFixture f = do
 joinFaceTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinFaceTest = do
   f <- runIO (surfaceFixture1 @a @g @v @h @e @f @p)
-  testFaceFixture f
   describe "joinFace" $ do
+      testFaceFixture f
       let g = faceFixture f
           e = fromJust $ halfedgeVV g (w f) (v f)
           (e', g') = Euler.joinFace (setHalfedge g (f1 f) e) e
@@ -82,11 +90,84 @@ joinFaceTest = do
       it "valid poylygon mesh" $ do
         either id show (isValidPolygonMesh g') `shouldBe` "True"
 
+
+removeFaceTest1 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+removeFaceTest1 = do
+  f <- runIO (surfaceFixture1 @a @g @v @h @e @f @p)
+  describe "removeFaceTest1" $ do
+    testFaceFixture f
+    let g = faceFixture f
+        e = fromJust $ halfedgeVV g (x f) (y f)
+        g' = Euler.removeFace g e
+    it "vertex count" $ do
+      exactNumVertices g' `shouldBe` 4
+    it "edges count" $ do
+      exactNumEdges g' `shouldBe` 5
+    it "border halfedges count" $ do
+      (length . filter (isBorder g') $ halfedges g') `shouldBe` 4
+    it "faces count" $ do
+      exactNumFaces g' `shouldBe` 2
+    it "vertices degree" $ do
+      degree g' (v f) `shouldBe` 3
+      degree g' (x f) `shouldBe` 2
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+removeFaceTest2 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+removeFaceTest2 = do
+  f <- runIO (surfaceFixture2 @a @g @v @h @e @f @p)
+  describe "removeFaceTest2" $ do
+    testFaceFixture f
+    let g = faceFixture f
+        e = fromJust $ halfedgeVV g (x f) (v f)
+        g' = Euler.removeFace g e
+        e' = fromJust $ halfedgeVV g' (x f) (w f)
+    it "vertex count" $ do
+      exactNumVertices g' `shouldBe` 5
+    it "edges count" $ do
+      exactNumEdges g' `shouldBe` 7
+    it "halfedges have border face" $ do
+      all ((== nullFace g') . face g') (halfedgesAroundFace g' e') `shouldBe` True
+    it "faces count" $ do
+      exactNumFaces g' `shouldBe` 3
+    it "face removed" $ do
+      face g e' == nullFace g `shouldBe` True
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+addFaceToBorderTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+addFaceToBorderTest = do
+  f <- runIO (surfaceFixture5 @a @g @v @h @e @f @p)
+  describe "addFaceToBorderTest" $ do
+    testHalfedgeFixture f
+    let g = halfedgeFixture f
+        (_, g') = Euler.addFaceToBorder g (h1 f) (h2 f)
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+addVertexAndFaceToBorderTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+addVertexAndFaceToBorderTest = do
+  f <- runIO (surfaceFixture5 @a @g @v @h @e @f @p)
+  describe "addVertexAndFaceToBordetTest" $ do
+    testHalfedgeFixture f
+    let g = halfedgeFixture f
+        bl = length $ halfedgesAroundFace g (h1 f)
+    it "halfedge distance" $ do
+      distance g next (h1 f) (h2 f) `shouldBe` Just 2
+    let (e', g') = Euler.addVertexAndFaceToBorder g (h1 f) (h2 f)
+    it "correct border" $ do
+      isBorder g' e' `shouldBe` False
+      isBorder g' (opposite g' e') `shouldBe` True
+    it "halfege count" $ do
+      length (halfedgesAroundFace g' (opposite g' e')) `shouldBe` bl
+    it "is valid polygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
 joinVertexInteriorTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinVertexInteriorTest = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
-  testFaceFixture f
   describe "joinVertexInteriorTest" $ do
+    testFaceFixture f
     let g = faceFixture f
         e = fromJust $ halfedgeVV g (w f) (x f)
         (e', g') = Euler.joinVertex g e
@@ -107,8 +188,8 @@ joinVertexInteriorTest = do
 joinVertexExteriorTest1 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinVertexExteriorTest1 = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
-  testFaceFixture f
   describe "joinVertexExteriorTest1" $ do
+    testFaceFixture f
     let g = faceFixture f
         e = fromJust $ halfedgeVV g (w f) (y f)
     it "fixture validity" $ do
@@ -132,8 +213,8 @@ joinVertexExteriorTest1 = do
 joinVertexExteriorTest2 :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 joinVertexExteriorTest2 = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
-  testFaceFixture f
   describe "joinVertexExteriorTest2" $ do
+    testFaceFixture f
     let g = faceFixture f
         e = fromJust $ halfedgeVV g (y f) (w f)
         (e', g') = Euler.joinVertex g e
@@ -157,8 +238,8 @@ joinVertexExteriorTest2 = do
 splitVertexTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 splitVertexTest = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
-  testFaceFixture f
   describe "splitVertexTest" $ do
+    testFaceFixture f
     let g = faceFixture f
         h1 = fromJust $ halfedgeVV g (w f) (y f)
         h2 = fromJust $ halfedgeVV g (z f) (y f)
@@ -178,8 +259,8 @@ splitVertexTest = do
 splitJoinVertexInverseTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
 splitJoinVertexInverseTest = do
   f <- runIO (surfaceFixture3 @a @g @v @h @e @f @p)
-  testFaceFixture f
-  describe "splitVertexTest" $ do
+  describe "splitJoinVertexInverseTest" $ do
+    testFaceFixture f
     let g = faceFixture f
         h = fromJust $ halfedgeVV g (w f) (x f)
         (_, g1) = Euler.joinVertex g h
@@ -201,3 +282,64 @@ splitJoinVertexInverseTest = do
       exactNumFaces g3 `shouldBe` 2
     it "valid poylygon mesh" $ do
       either id show (isValidPolygonMesh g3) `shouldBe` "True"
+
+joinLoopTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+joinLoopTest = do
+  f <- runIO (surfaceFixture4 @a @g @v @h @e @f @p)
+  describe "joinLoopTest" $ do
+    testHalfedgeFixture f
+    let g = halfedgeFixture f
+        (e', g') = Euler.joinLoop g (h1 f) (h2 f)
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+splitLoopTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+splitLoopTest = do
+  f <- runIO (surfaceFixture8 @a @g @v @h @e @f @p)
+  describe "splitLoopTest" $ do
+    testHalfedgeFixture f
+    let g = halfedgeFixture f
+        (e', g') = Euler.splitLoop g (h1 f) (h2 f) (h3 f)
+    it "vertex count" $ do
+      exactNumVertices g' `shouldBe` 8
+    it "halfedge count" $ do
+      exactNumHalfedges g' `shouldBe` 24
+    it "face count" $ do
+      exactNumFaces g' `shouldBe` 8
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+splitFaceTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+splitFaceTest = do
+  f <- runIO (surfaceFixture6 @a @g @v @h @e @f @p)
+  describe "splitFaceTest" $ do
+    testHalfedgeFixture f
+    let g = halfedgeFixture f
+        (e', g') = Euler.splitFace g (h1 f) (h2 f)
+    it "vertex count" $ do
+      exactNumVertices g' `shouldBe` 4
+    it "halfedge count" $ do
+      exactNumHalfedges g' `shouldBe` 10
+    it "face count" $ do
+      exactNumFaces g' `shouldBe` 2
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"
+
+makeHoleTest :: forall a g v h e f p. SurfaceFixtureC a g v h e f p => Spec
+makeHoleTest = do
+  f <- runIO (surfaceFixture7 @a @g @v @h @e @f @p)
+  describe "makeHoleTest" $ do
+    testHalfedgeFixture f
+    let g = halfedgeFixture f
+        nv = exactNumVertices g
+        nf = exactNumFaces g
+        nh = exactNumHalfedges g
+        g' = Euler.makeHole g (h1 f)
+    it "vertex count" $ do
+      exactNumVertices g' `shouldBe` nv
+    it "halfedge count" $ do
+      exactNumHalfedges g' `shouldBe` nh
+    it "face count" $ do
+      exactNumFaces g' `shouldBe` (nf - 1)
+    it "valid poylygon mesh" $ do
+      either id show (isValidPolygonMesh g') `shouldBe` "True"

@@ -3,8 +3,37 @@ module Hgal.Graph.Loops where
 import Control.Monad.State
 import Data.Vector.Circular (CircularVector)
 
+import Hgal.Graph.Class
 import qualified Hgal.Graph.ClassM as M
 import qualified Hgal.Graph.LoopsM as M
+
+
+nextAroundTarget :: HalfedgeGraph g v h e
+                 => g -> h -> h
+nextAroundTarget g = opposite g . next g
+
+prevAroundTarget :: HalfedgeGraph g v h e
+                 => g -> h -> h
+prevAroundTarget g = prev g . opposite g
+
+nextAroundSource :: HalfedgeGraph g v h e
+                 => g -> h -> h
+nextAroundSource g = next g . opposite g
+
+prevAroundSource :: HalfedgeGraph g v h e
+                 => g -> h -> h
+prevAroundSource g = opposite g . prev g
+
+
+distance :: HalfedgeGraph g v h e
+         => Eq h
+         => g -> (g -> h -> h) -> h -> h -> Maybe Int
+distance g f h1 h2 = worker h1 0
+  where
+    worker hx d =
+      let n = f g hx
+      in if n == h1 then Nothing
+           else if n == h2 then Just (d + 1) else worker n (d + 1)
 
 
 -- nextAroundTarget :: HalfedgeGraph g
