@@ -72,6 +72,7 @@ test-suite hgal-test
       Hgal.Data.SurfaceMeshTest
       Hgal.Graph.EulerOperationsTest
       Hgal.Graph.Fixtures
+      Hgal.Graph.PredicatesTest
       Paths_hgal
   hs-source-dirs:
       test
