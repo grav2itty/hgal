@@ -720,8 +720,9 @@ foo2 =
       f = do
            -- GM.makeRegularPrism sm 3 (V3 0 0 0) 7 13 True
             -- GM.makeTriangle sm (V3 2 2 2) (V3 0 0 0) (V3 1 1 1)
-            v1 <- GraphM.addVertex sm
-            GraphM.addEdge sm
+            GM.makeGrid sm 3 3 (\x y -> fromIntegral <$> (V3 x y 0)) True
+            -- v1 <- GraphM.addVertex sm
+            -- GraphM.addEdge sm
             -- propertyOf (Vertex 0) ?= 7
             -- propertyOf (Edge 0) ?= Map.fromList [("foo", "bar")]
             -- (propertyOf (Edge 0)._Just.at "foo") ?= "alice"

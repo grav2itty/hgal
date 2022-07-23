@@ -26,6 +26,7 @@ library
   exposed-modules:
       Hgal.Graph.Class
       Hgal.Graph.ClassM
+      Hgal.Graph.Generators
       Hgal.Graph.GeneratorsM
       Hgal.Graph.Helpers
       Hgal.Graph.HelpersM
@@ -72,6 +73,7 @@ test-suite hgal-test
       Hgal.Data.SurfaceMeshTest
       Hgal.Graph.EulerOperationsTest
       Hgal.Graph.Fixtures
+      Hgal.Graph.GeneratorsTest
       Hgal.Graph.PredicatesTest
       Paths_hgal
   hs-source-dirs:

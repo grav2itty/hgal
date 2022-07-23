@@ -6,7 +6,7 @@ import Control.Monad
 import Data.Maybe
 import Data.Vector ((!))
 import qualified Data.Vector as V
-import Linear hiding (point)
+import Linear
 
 import Hgal.Graph.Class (Point(..))
 import Hgal.Graph.ClassM
@@ -70,7 +70,7 @@ makeQuad g p0 p1 p2 p3 = do
   replaceProperty g (Point v1) p1
   replaceProperty g (Point v2) p2
   replaceProperty g (Point v3) p3
-  formQuad g v0 v2 v2 v3
+  formQuad g v0 v1 v2 v3
 
 formQuad :: MutableFaceGraph m g v h e f
          => g -> v -> v -> v -> v -> m h
@@ -118,9 +118,7 @@ formQuad g v0 v1 v2 v3 = do
 
 makeTetrahedron :: MutableFaceGraph m g v h e f
                 => PointGraph m g v p
-                => g
-                -> p -> p -> p -> p
-                -> m h
+                => g -> p -> p -> p -> p -> m h
 makeTetrahedron g p0 p1 p2 p3 = do
   v0 <- addVertex g
   v2 <- addVertex g -- this and the next line are switched to keep points in order
@@ -213,8 +211,8 @@ makeHexahedron g p0 p1 p2 p3 p4 p5 p6 p7 = do
       h' <- opposite h
       setTarget h' =<< (source <=< prev) ht'
       setNext h' =<< (opposite <=< next <=< next) ht'
-      (setNext ?? h) =<< (opposite <=< next) hb'
-      liftM2 (,) (prev ht) (next hb)
+      (setNext ?? h') =<< (opposite <=< next) hb'
+      liftM2 (,) (prev ht') (next hb')
     worker2 hb' _ = do
       Euler.fillHole g =<< opposite hb'
       next hb'
@@ -227,7 +225,7 @@ makeHexahedron g p0 p1 p2 p3 p4 p5 p6 p7 = do
 
 makeRegularPrism :: MutableFaceGraph m g v h e f
                  => PointGraph m g v (p a)
-                 => (Ord v, Eq f, Eq h)
+                 => (Ord v, Eq h, Eq f)
                  => Floating a
                  => R3 p
                  => g -> Int -> p a -> a -> a -> Bool -> m h
@@ -265,7 +263,7 @@ makeRegularPrism g n center height radius isClosed = do
 
 makePyramid :: MutableFaceGraph m g v h e f
             => PointGraph m g v (p a)
-            => (Ord v, Eq f, Eq h)
+            => (Ord v, Eq h, Eq f)
             => Floating a
             => R3 p
             => g -> Int -> p a -> a -> a -> Bool -> m h
@@ -300,7 +298,7 @@ makePyramid g n center height radius isClosed = do
 
 makeIcosahedron :: MutableFaceGraph m g v h e f
                 => PointGraph m g v (p a)
-                => (Ord v, Eq f, Eq h)
+                => (Ord v, Eq h, Eq f)
                 => Floating a
                 => R3 p
                 => g -> p a -> a -> m h
@@ -356,3 +354,27 @@ makeIcosahedron g center radius = do
 
   fromJust <$> halfedgeVV (vs ! 5) (vs ! 0)
 
+makeGrid :: MutableFaceGraph m g v h e f
+         => PointGraph m g v p
+         => (Ord v, Eq h, Eq f)
+         => g -> Int -> Int -> (Int -> Int -> p) -> Bool -> m h
+makeGrid g i j coordF triangulated = do
+  vs <- V.fromList <$> sequence
+    [ addVertex g >>= \v -> replaceProperty g (Point v) (coordF x y) >> return v
+    | x <- [0..i], y <- [0..j]
+    ]
+  sequence
+    [ if triangulated then
+        Euler.addFace g [v0, v1, v3] >>
+        Euler.addFace g [v1, v2, v3]
+      else
+        Euler.addFace g fvs
+    | x <- [0..(i - 1)], y <- [0..(j - 1)]
+    , let i0 = i2 - (i + 1) - 1
+          i1 = i0 + 1
+          i2 = (i + 1) * (y + 1) + x + 1
+          i3 = i2 - 1
+          fvs@[v0, v1, v2, v3] = (vs !) <$> [i0, i1, i2, i3]
+    ]
+
+  fromJust <$> halfedgeVV (vs ! 1) (vs ! 0)

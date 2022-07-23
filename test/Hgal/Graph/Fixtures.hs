@@ -38,6 +38,7 @@ class
     MutableFaceGraph g v h e f,
     M.MutableFaceGraph (State g) g v h e f,
     PointGraph g v (V3 a),
+    M.PointGraph (State g) g v (V3 a),
     Eq a, Num a,
     Eq v, Eq h, Eq f, Show v, Show h, Show f
   ) => SurfaceFixtureC a g v h e f p | g -> v, g -> h, g -> e, g -> f, g -> p
