@@ -48,7 +48,7 @@ instance (Eq a, Num a, Read a) => SurfaceFixtureC a
   SurfaceMesh.Halfedge
   SurfaceMesh.Edge
   SurfaceMesh.Face
-  SurfaceMesh.Point
+  (Point SurfaceMesh.Vertex)
 
 surfaceFixture1 :: SurfaceFixtureC a g v h e f p
                 => IO (FaceFixture g v h e f)

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -18,6 +19,7 @@ import Data.Sequence as Seq hiding (empty, length)
 import qualified Data.Sequence as Seq (empty)
 import Data.Tuple
 import qualified Data.Vector as V
+import GHC.Generics (Generic)
 
 import qualified Hgal.Graph.Class as Graph
 import qualified Hgal.Graph.ClassM as GraphM
@@ -30,7 +32,7 @@ import Debug.Trace
 import qualified Hgal.Graph.EulerOperations as Euler
 import qualified Hgal.Graph.EulerOperationsM as EulerM
 import qualified Hgal.Graph.GeneratorsM as GM
-import Linear hiding (point)
+import Linear
 import Data.Map (Map)
 
 
@@ -84,24 +86,22 @@ class Element a where
   prev :: SurfaceMesh v d -> a -> a
 
 newtype Vertex = Vertex Int
-    deriving (Bounded, Enum, Eq, Ord)
+    deriving (Bounded, Enum, Eq, Generic, Ord )
     deriving newtype (Bits, Integral, Num, Real)
+instance Wrapped Vertex
 newtype Halfedge = Halfedge Int
-    deriving (Bounded, Enum, Eq, Ord)
+    deriving (Bounded, Enum, Eq, Generic, Ord)
     deriving newtype (Bits, Integral, Num, Real)
+instance Wrapped Halfedge
 newtype Edge = Edge Int
-    deriving (Bounded, Enum, Ord)
+    deriving (Bounded, Enum, Generic, Ord)
     deriving newtype (Bits, Integral, Num, Real)
 instance Eq Edge where
   (==) a b = div a 2 == div b 2
 newtype Face = Face Int
-    deriving (Bounded, Enum, Eq, Ord)
+    deriving (Bounded, Enum, Eq, Generic, Ord)
     deriving newtype (Bits, Integral, Num, Real)
-
--- should be the other way round?
-newtype Point = Point Vertex
-    deriving (Bounded, Enum, Eq, Ord)
-    deriving newtype (Bits, Integral, Num, Real)
+instance Wrapped Face
 
 data SurfaceMesh v d = SurfaceMesh
   { _vconn :: Seq (Connectivity Vertex)
@@ -305,19 +305,19 @@ faces sm = Prelude.filter (not . isRemoved sm) $
 
 addVertex :: SurfaceMesh v d -> (Vertex, SurfaceMesh v d)
 addVertex sm =
-  let sm' = (vconn._Wrapped') %~ (snoc ?? VertexConnectivity nullE) $ sm
+  let sm' = vconn %~ (snoc ?? VertexConnectivity nullE) $ sm
       sm'' = vpoint %~ (snoc ?? Nothing) $ sm'
   in (new sm, sm'')
 
 addEdge :: SurfaceMesh v d -> (Edge, SurfaceMesh v d)
 addEdge sm =
   let addh = (snoc ?? HalfedgeConnectivity nullE nullE nullE nullE)
-      sm' = (hconn._Wrapped') %~ (addh . addh) $ sm
+      sm' = hconn %~ (addh . addh) $ sm
   in (new sm, sm')
 
 addFace :: SurfaceMesh v d -> (Face, SurfaceMesh v d)
 addFace sm =
-  let sm' = (fconn._Wrapped') %~ (snoc ?? FaceConnectivity nullE) $ sm
+  let sm' = fconn %~ (snoc ?? FaceConnectivity nullE) $ sm
   in (new sm, sm')
 
 newVertex :: SurfaceMesh v d -> v -> (SurfaceMesh v d, Vertex)
@@ -384,11 +384,44 @@ halfedgeVV sm sour tar =
       else worker h
 
 -------------------------------------------------------------------------------
+-- Merge
+
+merge :: (d1 -> d2 -> d3) -> SurfaceMesh v d1 -> SurfaceMesh v d2 -> SurfaceMesh v d3
+merge merged sm sm2 =
+  let vconn2 = sm2 ^. vconn
+               & traversed.vH.filtered (/= nullE)._Wrapped' %~ (+ numHalfedges sm)
+      hconn2 = sm2 ^. hconn
+               & traversed.hF.filtered (/= nullE)._Wrapped' %~ (+ numFaces sm)
+               & traversed.hV.filtered (/= nullE)._Wrapped' %~ (+ numVertices sm)
+               & traversed.hN.filtered (/= nullE)._Wrapped' %~ (+ numHalfedges sm)
+               & traversed.hP.filtered (/= nullE)._Wrapped' %~ (+ numHalfedges sm)
+      fconn2 = sm2 ^. fconn
+               & traversed.fH.filtered (/= nullE)._Wrapped' %~ (+ numHalfedges sm)
+      vremoved2 = IntMap.mapKeys (+ numVertices sm) (sm2 ^. vremoved)
+      eremoved2 = IntMap.mapKeys (+ numEdges sm) (sm2 ^. eremoved)
+      fremoved2 = IntMap.mapKeys (+ numFaces sm) (sm2 ^. fremoved)
+  in SurfaceMesh
+     (_vconn sm <> vconn2)
+     (_hconn sm <> hconn2)
+     (_fconn sm <> fconn2)
+     (_vpoint sm <> _vpoint sm2)
+     (_vremoved sm <> vremoved2)
+     (_eremoved sm <> eremoved2)
+     (_fremoved sm <> fremoved2)
+     (merged (_props sm) (_props sm2))
+
+instance Semigroup d => Semigroup (SurfaceMesh v d) where
+  (<>) = merge (<>)
+
+instance Monoid d => Monoid (SurfaceMesh v d) where
+  mempty = empty mempty
+
+-------------------------------------------------------------------------------
 -- Properties
 
 instance Eq v => Property (SurfaceMesh v d) (Graph.Point Vertex) v where
-  property (Graph.Point (Vertex i)) = vpoint.lens (`Seq.index` i) (flip $ Seq.update i)
-  properties sm = V.fromList. toList $ _vpoint sm
+  property (Graph.Point (Vertex i)) = vpoint.lens (join . Seq.lookup i) (flip $ Seq.update i)
+  properties sm = V.fromList . toList $ _vpoint sm
 
   find sm v = Graph.Point . Vertex <$> Seq.elemIndexL (Just v) (_vpoint sm)
   findKeys sm f = Graph.Point . Vertex <$> Seq.findIndicesL (maybe False f) (_vpoint sm)
@@ -642,10 +675,10 @@ instance GraphM.SetFace (St v d) Halfedge Face
 instance GraphM.HalfedgeC (St v d) Vertex Halfedge Edge
 instance GraphM.MutableHalfedgeC (St v d) Vertex Halfedge
 
-instance GraphM.HalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge where
-instance GraphM.MutableHalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge where
-instance GraphM.FaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face where
-instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face where
+instance GraphM.HalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge
+instance GraphM.MutableHalfedgeGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge
+instance GraphM.FaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face
+instance GraphM.MutableFaceGraph (St v d) (SurfaceMesh v d) Vertex Halfedge Edge Face
 
 instance Eq v => Graph.PointGraph (SurfaceMesh v d) Vertex v
 instance Eq v => GraphM.PointGraph (St v d) (SurfaceMesh v d) Vertex v
@@ -653,10 +686,9 @@ instance Eq v => GraphM.PointGraph (St v d) (SurfaceMesh v d) Vertex v
 -------------------------------------------------------------------------------
 -- Garbage temp tests
 
-foo :: SurfaceMesh () ()
+foo :: SurfaceMesh (V3 Double) ()
 foo =
   let sm = empty ()
-      f :: St () () ()
       f = do
             v1 <- GraphM.addVertex sm
             v2 <- GraphM.addVertex sm
